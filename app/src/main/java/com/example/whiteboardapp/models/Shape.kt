@@ -1,8 +1,12 @@
 package com.example.whiteboardapp.models
 
 sealed class Shape {
-    data class Rectangle(val topLeft: Pair<Float, Float>, val bottomRight: Pair<Float, Float>, val color: Int) : Shape()
-    data class Circle(val center: Pair<Float, Float>, val radius: Float, val color: Int) : Shape()
-    data class Line(val start: Pair<Float, Float>, val end: Pair<Float, Float>, val color: Int) : Shape()
-    data class Polygon(val points: List<Pair<Float, Float>>, val color: Int) : Shape()
+    data class Rectangle(var topLeft: Pair<Float, Float>, var bottomRight: Pair<Float, Float>, var color: Int) : Shape(){
+        fun getResizeHandle(): Pair<Float, Float> = bottomRight
+    }
+    data class Circle(var center: Pair<Float, Float>, var radius: Float, var color: Int) : Shape() {
+        fun getResizeHandle(): Pair<Float, Float> = Pair(center.first + radius, center.second + radius)
+    }
+    data class Line(var start: Pair<Float, Float>, var end: Pair<Float, Float>, var color: Int) : Shape()
+    data class Polygon(var points: List<Pair<Float, Float>>, var color: Int) : Shape()
 }

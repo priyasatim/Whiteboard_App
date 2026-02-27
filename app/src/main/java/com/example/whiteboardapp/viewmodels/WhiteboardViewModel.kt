@@ -18,21 +18,24 @@ class WhiteboardViewModel : ViewModel() {
     private val _texts = MutableStateFlow<List<TextItem>>(emptyList())
     val texts: StateFlow<List<TextItem>> = _texts
 
-    private var currentStroke: Stroke? = null
 
-    // Start new stroke
-    fun startStroke(color: Int, width: Float) {
-        currentStroke = Stroke(color = color, width = width)
-        _strokes.value = _strokes.value + currentStroke!!
+    // Current drawing options
+    var currentColor = 0xFF000000.toInt()
+    var currentWidth = 5f
+
+    // Add a new stroke
+    fun addStroke(stroke: Stroke) {
+        _strokes.value = _strokes.value + stroke
     }
 
-    fun addPointToStroke(x: Float, y: Float) {
-        currentStroke?.points?.add(x to y)
-        _strokes.value = _strokes.value.toList()
+    // Change brush color
+    fun changeColor(color: Int) {
+        currentColor = color
     }
 
-    fun endStroke() {
-        currentStroke = null
+    // Change brush width
+    fun changeWidth(width: Float) {
+        currentWidth = width
     }
 
     // Add shapes or texts
