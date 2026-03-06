@@ -1,11 +1,13 @@
 package com.example.whiteboardapp.viewmodels
 
+import android.graphics.Color
 import androidx.lifecycle.ViewModel
 import com.example.whiteboardapp.models.Shape
 import com.example.whiteboardapp.models.Stroke
 import com.example.whiteboardapp.models.TextItem
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import androidx.core.graphics.toColorInt
 
 class WhiteboardViewModel : ViewModel() {
 
@@ -20,7 +22,7 @@ class WhiteboardViewModel : ViewModel() {
 
 
     // Current drawing options
-    var currentColor = 0xFF000000.toInt()
+    var currentColor = "#000000".toColorInt()
     var currentWidth = 5f
 
     // Add a new stroke
@@ -30,6 +32,7 @@ class WhiteboardViewModel : ViewModel() {
 
     // Change brush color
     fun changeColor(color: Int) {
+        // Saving JSON
         currentColor = color
     }
 
@@ -45,5 +48,12 @@ class WhiteboardViewModel : ViewModel() {
 
     fun addText(text: TextItem) {
         _texts.value = _texts.value + text
+    }
+
+    // Update existing text
+    fun updateText(updatedText: TextItem) {
+        _texts.value = _texts.value.map { text ->
+            if (text.position == updatedText.position) updatedText else text
+        }
     }
 }

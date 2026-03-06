@@ -2,6 +2,7 @@ package com.example.whiteboardapp.views
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.util.AttributeSet
@@ -12,6 +13,7 @@ import com.example.whiteboardapp.models.Stroke
 import com.example.whiteboardapp.models.TextItem
 
 class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(context, attrs) {
+    var selectedPolygonPointIndex = -1
 
     private val paint = Paint().apply {
         isAntiAlias = true
@@ -75,33 +77,53 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
 
             when (shape) {
                 is Shape.Rectangle -> canvas.drawRect(
-                    shape.topLeft.first,
-                    shape.topLeft.second,
-                    shape.bottomRight.first,
-                    shape.bottomRight.second,
+                    shape.topLeft[0],
+                    shape.topLeft[1],
+                    shape.bottomRight[0],
+                    shape.bottomRight[1],
                     paint
                 )
-                is Shape.Circle -> canvas.drawCircle(
-                    shape.center.first,
-                    shape.center.second,
-                    shape.radius,
-                    paint
-                )
+                is Shape.Circle -> {
+
+                    canvas.drawCircle(
+                        shape.center[0],
+                        shape.center[1],
+                        shape.radius,
+                        paint
+                    )
+                }
                 is Shape.Line -> canvas.drawLine(
-                    shape.start.first,
-                    shape.start.second,
-                    shape.end.first,
-                    shape.end.second,
+                    shape.start[0],
+                    shape.start[1],
+                    shape.end[0],
+                    shape.end[1],
                     paint
                 )
                 is Shape.Polygon -> {
-                    val path = Path()
-                    shape.points.forEachIndexed { i, p ->
-                        if (i == 0) path.moveTo(p.first, p.second)
-                        else path.lineTo(p.first, p.second)
+
+                    if (shape.points.size >= 2) {
+
+                        val path = Path()
+                        path.reset()
+
+                        shape.points.forEachIndexed { index, point ->
+                            val x = point[0]
+                            val y = point[1]
+
+                            if (index == 0) {
+                                path.moveTo(x, y)
+                            } else {
+                                path.lineTo(x, y)
+                            }
+                        }
+
+                        // close shape if 3+ points
+                        if (shape.points.size > 2) {
+                            path.close()
+                        }
+
+                        canvas.drawPath(path, paint)
                     }
-                    path.close()
-                    canvas.drawPath(path, paint)
                 }
             }
         }
@@ -133,18 +155,33 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
 
                     when (shape) {
                         is Shape.Rectangle -> {
-                            shape.topLeft = Pair(shape.topLeft.first + dx, shape.topLeft.second + dy)
-                            shape.bottomRight = Pair(shape.bottomRight.first + dx, shape.bottomRight.second + dy)
+                            shape.topLeft = listOf(
+                                shape.topLeft[0] + dx,
+                                shape.topLeft[1] + dy
+                            )
+
+                            shape.bottomRight = listOf(
+                                shape.bottomRight[0] + dx,
+                                shape.bottomRight[1] + dy
+                            )
                         }
                         is Shape.Circle -> {
-                            shape.center = Pair(shape.center.first + dx, shape.center.second + dy)
+
+                            val newX = shape.center[0] + dx
+                            val newY = shape.center[1] + dy
+
+                            shape.center = listOf(newX, newY) as MutableList<Float>
                         }
                         is Shape.Line -> {
-                            shape.start = Pair(shape.start.first + dx, shape.start.second + dy)
-                            shape.end = Pair(shape.end.first + dx, shape.end.second + dy)
+                            shape.start = shape.start
+                            shape.end = shape.end
                         }
                         is Shape.Polygon -> {
-                            shape.points = shape.points.map { Pair(it.first + dx, it.second + dy) }
+
+                            // Move all points by dx, dy
+                            shape.points = shape.points.map { point ->
+                                listOf(point[0] + dx, point[1] + dy)
+                            }.toMutableList()
                         }
                     }
 
@@ -164,47 +201,70 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
     fun findShapeAt(x: Float, y: Float): Shape? {
         return shapes.reversed().find { shape ->
             when (shape) {
-                is Shape.Rectangle -> x >= shape.topLeft.first && x <= shape.bottomRight.first &&
-                        y >= shape.topLeft.second && y <= shape.bottomRight.second
+                is Shape.Rectangle ->
+                    x >= shape.topLeft[0] && x <= shape.bottomRight[0] &&
+                            y >= shape.topLeft[1] && y <= shape.bottomRight[1]
+
                 is Shape.Circle -> {
-                    val dx = x - shape.center.first
-                    val dy = y - shape.center.second
+                    val dx = x - shape.center[0]
+                    val dy = y - shape.center[1]
                     dx * dx + dy * dy <= shape.radius * shape.radius
-                }
+                    }
                 is Shape.Line -> {
+
                     // Approximate touch near line
-                    val distance = distanceToLine(shape.start, shape.end, Pair(x, y))
+                    val distance = distanceToLine(shape.start, shape.end, listOf(x, y))
                     distance < 20
                 }
-                is Shape.Polygon -> pointInPolygon(Pair(x, y), shape.points)
+                is Shape.Polygon ->
+                    pointInPolygon(listOf(x, y), shape.points)
             }
         }
     }
 
-    private fun distanceToLine(start: Pair<Float, Float>, end: Pair<Float, Float>, point: Pair<Float, Float>): Float {
-        val x0 = point.first
-        val y0 = point.second
-        val x1 = start.first
-        val y1 = start.second
-        val x2 = end.first
-        val y2 = end.second
+    private fun distanceToLine(
+        start: List<Float>,
+        end: List<Float>,
+        point: List<Float>
+    ): Float {
 
-        val numerator = Math.abs((y2 - y1)*x0 - (x2 - x1)*y0 + x2*y1 - y2*x1)
-        val denominator = Math.hypot((y2 - y1).toDouble(), (x2 - x1).toDouble())
+        val x0 = point[0]
+        val y0 = point[1]
+
+        val x1 = start[0]
+        val y1 = start[1]
+
+        val x2 = end[0]
+        val y2 = end[1]
+
+        val numerator = kotlin.math.abs((y2 - y1) * x0 - (x2 - x1) * y0 + x2 * y1 - y2 * x1)
+
+        val denominator = kotlin.math.hypot(
+            (y2 - y1).toDouble(),
+            (x2 - x1).toDouble()
+        )
+
         return (numerator / denominator).toFloat()
     }
 
-    private fun pointInPolygon(point: Pair<Float, Float>, polygon: List<Pair<Float, Float>>): Boolean {
-        // Simple ray-casting algorithm
+    private fun pointInPolygon(point: List<Float>, polygon: List<List<Float>>): Boolean {
+
         var intersects = 0
+
         for (i in polygon.indices) {
+
             val j = (i + 1) % polygon.size
-            if (((polygon[i].second > point.second) != (polygon[j].second > point.second)) &&
-                (point.first < (polygon[j].first - polygon[i].first) * (point.second - polygon[i].second) / (polygon[j].second - polygon[i].second) + polygon[i].first)
+
+            if (
+                ((polygon[i][1] > point[1]) != (polygon[j][1] > point[1])) &&
+                (point[0] < (polygon[j][0] - polygon[i][0]) *
+                        (point[1] - polygon[i][1]) /
+                        (polygon[j][1] - polygon[i][1]) + polygon[i][0])
             ) {
                 intersects++
             }
         }
+
         return intersects % 2 == 1
     }
 }

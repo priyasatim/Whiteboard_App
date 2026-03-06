@@ -83,26 +83,12 @@
         android:gravity="center_vertical"
         android:weightSum="5">
 
-        <Button
-            android:id="@+id/btnRectangle"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
+        <ImageView
+            android:id="@+id/iv_add_shape"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
             android:layout_weight="1"
-            android:text="Rect"/>
-
-        <Button
-            android:id="@+id/btnCircle"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:text="Circle"/>
-
-        <Button
-            android:id="@+id/btnLine"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:text="Line"/>
+            android:src="@drawable/ic_add"/>
 
         <Button
             android:id="@+id/btnText"
