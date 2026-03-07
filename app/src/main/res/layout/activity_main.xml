@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/rootLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -17,30 +17,6 @@
         android:weightSum="6"
         android:layout_marginBottom="8dp">
 
-        <!-- Color buttons -->
-        <Button
-            android:id="@+id/btnColorRed"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:backgroundTint="#FF0000"
-            android:text=""/>
-
-        <Button
-            android:id="@+id/btnColorBlue"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:backgroundTint="#0000FF"
-            android:text=""/>
-
-        <Button
-            android:id="@+id/btnColorGreen"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:backgroundTint="#00FF00"
-            android:text=""/>
 
         <!-- Stroke width buttons -->
         <Button
@@ -74,7 +50,6 @@
         android:background="#FFFFFF"
         android:layout_marginBottom="8dp"/>
 
-    <!-- Bottom Toolbar: Shapes, Text, Eraser, Save -->
     <LinearLayout
         android:id="@+id/bottomToolbar"
         android:layout_width="match_parent"
@@ -84,24 +59,42 @@
         android:weightSum="5">
 
         <ImageView
+            android:id="@+id/iv_erase"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:padding="6dp"
+            android:src="@drawable/ic_eraser"/>
+
+        <ImageView
+            android:id="@+id/iv_text"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:padding="6dp"
+            android:src="@drawable/ic_text"/>
+
+        <ImageView
+            android:id="@+id/iv_save"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:padding="6dp"
+            android:src="@drawable/ic_save"/>
+
+        <ImageView
             android:id="@+id/iv_add_shape"
             android:layout_width="24dp"
-            android:layout_height="24dp"
+            android:layout_height="40dp"
             android:layout_weight="1"
+            android:padding="6dp"
             android:src="@drawable/ic_add"/>
-
-        <Button
-            android:id="@+id/btnText"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:text="Text"/>
-
-        <Button
-            android:id="@+id/btnSave"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:text="Save"/>
     </LinearLayout>
+
+    <include
+        android:id="@+id/colorPalette"
+        layout="@layout/color_palate"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+
 </LinearLayout>

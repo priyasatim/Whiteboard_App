@@ -25,10 +25,6 @@ class WhiteboardViewModel : ViewModel() {
     var currentColor = "#000000".toColorInt()
     var currentWidth = 5f
 
-    // Add a new stroke
-    fun addStroke(stroke: Stroke) {
-        _strokes.value = _strokes.value + stroke
-    }
 
     // Change brush color
     fun changeColor(color: Int) {
@@ -56,4 +52,5 @@ class WhiteboardViewModel : ViewModel() {
             if (text.position == updatedText.position) updatedText else text
         }
     }
+
 }

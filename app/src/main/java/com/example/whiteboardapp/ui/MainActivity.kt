@@ -50,13 +50,13 @@ class MainActivity : AppCompatActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
                     viewModel.strokes.collect {
-                        binding.drawingCanvas.strokes = it
+                        binding.drawingCanvas.strokes = it.toMutableList()
                         binding.drawingCanvas.invalidate()
                     }
                 }
                 launch {
                     viewModel.shapes.collect {
-                        binding.drawingCanvas.shapes = it
+                        binding.drawingCanvas.shapes = it.toMutableList()
                         binding.drawingCanvas.invalidate()
                     }
                 }
@@ -70,14 +70,20 @@ class MainActivity : AppCompatActivity() {
         }
 
         // ----- Color buttons -----
-        binding.btnColorRed.setOnClickListener { viewModel.changeColor("#FF0000".toColorInt()) }
-        binding.btnColorBlue.setOnClickListener { viewModel.changeColor("#0000FF".toColorInt()) }
-        binding.btnColorGreen.setOnClickListener { viewModel.changeColor("#00FF00".toColorInt()) }
+        binding.colorPalette.colorRed.setOnClickListener { viewModel.changeColor("#FF0000".toColorInt()) }
+        binding.colorPalette.colorBlue.setOnClickListener { viewModel.changeColor("#0000FF".toColorInt()) }
+        binding.colorPalette.colorGreen.setOnClickListener { viewModel.changeColor("#00FF00".toColorInt()) }
 
         // ----- Stroke width -----
         binding.btnThin.setOnClickListener { viewModel.changeWidth(3f) }
         binding.btnMedium.setOnClickListener { viewModel.changeWidth(6f) }
         binding.btnThick.setOnClickListener { viewModel.changeWidth(10f) }
+
+        val canvasView = findViewById<DrawingCanvas>(R.id.drawingCanvas)
+
+        canvasView.textClickListener = { textItem ->
+            showEditTextDialog(textItem)
+        }
 
         // ----- Shapes -----
         binding.ivAddShape.setOnClickListener {
@@ -85,7 +91,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         // ----- Text -----
-        binding.btnText.setOnClickListener {
+        binding.ivText.setOnClickListener {
             val lastY = viewModel.texts.value.lastOrNull()?.position?.second ?: 500f
             val text = TextItem(
                 "Hello!",
@@ -98,189 +104,189 @@ class MainActivity : AppCompatActivity() {
         }
 
         // ----- Save -----
-        binding.btnSave.setOnClickListener {
+        binding.ivSave.setOnClickListener {
             saveCanvas()
         }
 
         // ----- Touch on canvas for freehand -----
-        binding.drawingCanvas.setOnTouchListener { v, event ->
-            val canvas = v as DrawingCanvas
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    // Check if touching resize handle
-                    canvas.resizeShape = canvas.shapes.find { shape ->
-                        when(shape) {
-                            is Shape.Rectangle -> {
-                                val handle = shape.getResizeHandle()
-                                val dx = handle[0] - event.x
-                                val dy = handle[1] - event.y
-                                dx*dx + dy*dy <= canvas.handleRadius*canvas.handleRadius
-                            }
-
-                            is Shape.Circle -> {
-
-                                val handle = shape.getResizeHandle()
-
-                                val dx = handle.first - event.x
-                                val dy = handle.second - event.y
-
-                                dx * dx + dy * dy <= canvas.handleRadius * canvas.handleRadius
-                            }
-
-                            is Shape.Line -> {
-
-                                val start = shape.start
-                                val end = shape.end
-
-                                val dxStart = start[0] - event.x
-                                val dyStart = start[1] - event.y
-
-                                val dxEnd = end[0] - event.x
-                                val dyEnd = end[1] - event.y
-
-                                val startTouched =
-                                    dxStart * dxStart + dyStart * dyStart <= canvas.handleRadius * canvas.handleRadius
-
-                                val endTouched =
-                                    dxEnd * dxEnd + dyEnd * dyEnd <= canvas.handleRadius * canvas.handleRadius
-
-                                startTouched || endTouched
-                            }
-                            else -> false
-                        }
-                    }
-
-
-
-                    if(canvas.resizeShape != null) {
-                        canvas.isResizing = true
-                        canvas.resizeStartX = event.x
-                        canvas.resizeStartY = event.y
-                        true
-                    } else {
-                        val tappedText = viewModel.texts.value.find { textItem ->
-                            val textPaint = Paint()
-                            textPaint.textSize = textItem.size
-                            textPaint.color = textItem.color
-                            textPaint.style = Paint.Style.FILL
-
-                            val bounds = Rect()
-                            textPaint.getTextBounds(textItem.text, 0, textItem.text.length, bounds)
-
-                            val left = textItem.position.first
-                            val top = textItem.position.second - bounds.height() // baseline - height
-                            val right = left + bounds.width()
-                            val bottom = textItem.position.second
-
-                            val padding = 20f // optional, make tapping easier
-                            event.x in (left - padding)..(right + padding) &&
-                                    event.y in (top - padding)..(bottom + padding)
-                        }
-
-                        if (tappedText != null) {
-                            // User tapped an existing text → open edit dialog
-                            showEditTextDialog(tappedText)
-                        }
-                        canvas.lastTouchX = event.x
-                        canvas.lastTouchY = event.y
-                        true
-                    }
-                }
-
-                MotionEvent.ACTION_MOVE -> {
-                    if(canvas.isResizing) {
-                        val dx = event.x - canvas.resizeStartX
-                        val dy = event.y - canvas.resizeStartY
-                        when(val shape = canvas.resizeShape) {
-                            is Shape.Rectangle -> {
-                                shape.bottomRight = listOf(
-                                    shape.bottomRight[0] + dx,
-                                    shape.bottomRight[1] + dy
-                                ) as MutableList<Float>
-                            }
-                            is Shape.Circle -> {
-                                val handle = shape.getResizeHandle()
-
-                                val dx = handle.first - event.x
-                                val dy = handle.second - event.y
-
-                                val touchRadius = canvas.handleRadius * 3
-
-                                dx * dx + dy * dy <= touchRadius * touchRadius
-                            }
-                            is Shape.Line -> {
-
-                                shape.end = mutableListOf(event.x, event.y)
-                            }
-                            is Shape.Polygon -> {
-
-                                val index = canvas.selectedPolygonPointIndex
-
-                                if (index != -1) {
-                                    shape.points[index] = mutableListOf(event.x, event.y)
-                                }
-                            }
-                            else -> {}
-                        }
-                        canvas.resizeStartX = event.x
-                        canvas.resizeStartY = event.y
-                        canvas.invalidate()
-                        true
-                    } else {
-                        // Existing drag / stroke logic
-                        canvas.currentShape?.let { shape ->
-                            val dx = event.x - canvas.lastTouchX
-                            val dy = event.y - canvas.lastTouchY
-                            when (shape) {
-                                is Shape.Rectangle -> {
-                                    shape.topLeft = listOf(
-                                        shape.topLeft[0] + dx,
-                                        shape.topLeft[1] + dy
-                                    ) as MutableList<Float>
-                                    shape.bottomRight = listOf(
-                                        shape.bottomRight[0] + dx,
-                                        shape.bottomRight[1] + dy
-                                    ) as MutableList<Float>
-                                }
-                                is Shape.Circle -> {
-                                    val newX = shape.center[0] + dx
-                                    val newY = shape.center[1] + dy
-
-                                    shape.center = listOf(newX, newY) as MutableList<Float>
-                                }
-                                is Shape.Line -> {
-                                    shape.start = mutableListOf(shape.start[0] + dx, shape.start[1] + dy)
-                                    shape.end = mutableListOf(shape.end[0] + dx, shape.end[1] + dy)
-                                }
-
-                                is Shape.Polygon -> {
-                                    shape.points = shape.points.map { point ->
-                                        mutableListOf(point[0] + dx, point[1] + dy)
-                                    }.toMutableList()
-                                }
-                            }
-                            canvas.lastTouchX = event.x
-                            canvas.lastTouchY = event.y
-                        }
-
-                        canvas.currentShape ?: canvas.currentStroke?.points?.add(Pair(event.x, event.y))
-                        canvas.invalidate()
-                        true
-                    }
-                }
-
-                MotionEvent.ACTION_UP -> {
-                    canvas.currentStroke?.let { viewModel.addStroke(it) }
-                    canvas.currentStroke = null
-                    canvas.currentShape = null
-                    canvas.isResizing = false
-                    canvas.resizeShape = null
-                    true
-                }
-
-                else -> false
-            }
-        }
+//        binding.drawingCanvas.setOnTouchListener { v, event ->
+//            val canvas = v as DrawingCanvas
+//            when (event.action) {
+//                MotionEvent.ACTION_DOWN -> {
+//                    // Check if touching resize handle
+//                    canvas.resizeShape = canvas.shapes.find { shape ->
+//                        when(shape) {
+//                            is Shape.Rectangle -> {
+//                                val handle = shape.getResizeHandle()
+//                                val dx = handle[0] - event.x
+//                                val dy = handle[1] - event.y
+//                                dx*dx + dy*dy <= canvas.handleRadius*canvas.handleRadius
+//                            }
+//
+//                            is Shape.Circle -> {
+//
+//                                val handle = shape.getResizeHandle()
+//
+//                                val dx = handle.first - event.x
+//                                val dy = handle.second - event.y
+//
+//                                dx * dx + dy * dy <= canvas.handleRadius * canvas.handleRadius
+//                            }
+//
+//                            is Shape.Line -> {
+//
+//                                val start = shape.start
+//                                val end = shape.end
+//
+//                                val dxStart = start[0] - event.x
+//                                val dyStart = start[1] - event.y
+//
+//                                val dxEnd = end[0] - event.x
+//                                val dyEnd = end[1] - event.y
+//
+//                                val startTouched =
+//                                    dxStart * dxStart + dyStart * dyStart <= canvas.handleRadius * canvas.handleRadius
+//
+//                                val endTouched =
+//                                    dxEnd * dxEnd + dyEnd * dyEnd <= canvas.handleRadius * canvas.handleRadius
+//
+//                                startTouched || endTouched
+//                            }
+//                            else -> false
+//                        }
+//                    }
+//
+//
+//
+//                    if(canvas.resizeShape != null) {
+//                        canvas.isResizing = true
+//                        canvas.resizeStartX = event.x
+//                        canvas.resizeStartY = event.y
+//                        true
+//                    } else {
+//                        val tappedText = viewModel.texts.value.find { textItem ->
+//                            val textPaint = Paint()
+//                            textPaint.textSize = textItem.size
+//                            textPaint.color = textItem.color
+//                            textPaint.style = Paint.Style.FILL
+//
+//                            val bounds = Rect()
+//                            textPaint.getTextBounds(textItem.text, 0, textItem.text.length, bounds)
+//
+//                            val left = textItem.position.first
+//                            val top = textItem.position.second - bounds.height() // baseline - height
+//                            val right = left + bounds.width()
+//                            val bottom = textItem.position.second
+//
+//                            val padding = 20f // optional, make tapping easier
+//                            event.x in (left - padding)..(right + padding) &&
+//                                    event.y in (top - padding)..(bottom + padding)
+//                        }
+//
+//                        if (tappedText != null) {
+//                            // User tapped an existing text → open edit dialog
+//                            showEditTextDialog(tappedText)
+//                        }
+//                        canvas.lastTouchX = event.x
+//                        canvas.lastTouchY = event.y
+//                        true
+//                    }
+//                }
+//
+//                MotionEvent.ACTION_MOVE -> {
+//                    if(canvas.isResizing) {
+//                        val dx = event.x - canvas.resizeStartX
+//                        val dy = event.y - canvas.resizeStartY
+//                        when(val shape = canvas.resizeShape) {
+//                            is Shape.Rectangle -> {
+//                                shape.bottomRight = listOf(
+//                                    shape.bottomRight[0] + dx,
+//                                    shape.bottomRight[1] + dy
+//                                ) as MutableList<Float>
+//                            }
+//                            is Shape.Circle -> {
+//                                val handle = shape.getResizeHandle()
+//
+//                                val dx = handle.first - event.x
+//                                val dy = handle.second - event.y
+//
+//                                val touchRadius = canvas.handleRadius * 3
+//
+//                                dx * dx + dy * dy <= touchRadius * touchRadius
+//                            }
+//                            is Shape.Line -> {
+//
+//                                shape.end = mutableListOf(event.x, event.y)
+//                            }
+//                            is Shape.Polygon -> {
+//
+//                                val index = canvas.selectedPolygonPointIndex
+//
+//                                if (index != -1) {
+//                                    shape.points[index] = mutableListOf(event.x, event.y)
+//                                }
+//                            }
+//                            else -> {}
+//                        }
+//                        canvas.resizeStartX = event.x
+//                        canvas.resizeStartY = event.y
+//                        canvas.invalidate()
+//                        true
+//                    } else {
+//                        // Existing drag / stroke logic
+//                        canvas.currentShape?.let { shape ->
+//                            val dx = event.x - canvas.lastTouchX
+//                            val dy = event.y - canvas.lastTouchY
+//                            when (shape) {
+//                                is Shape.Rectangle -> {
+//                                    shape.topLeft = listOf(
+//                                        shape.topLeft[0] + dx,
+//                                        shape.topLeft[1] + dy
+//                                    ) as MutableList<Float>
+//                                    shape.bottomRight = listOf(
+//                                        shape.bottomRight[0] + dx,
+//                                        shape.bottomRight[1] + dy
+//                                    ) as MutableList<Float>
+//                                }
+//                                is Shape.Circle -> {
+//                                    val newX = shape.center[0] + dx
+//                                    val newY = shape.center[1] + dy
+//
+//                                    shape.center = listOf(newX, newY) as MutableList<Float>
+//                                }
+//                                is Shape.Line -> {
+//                                    shape.start = mutableListOf(shape.start[0] + dx, shape.start[1] + dy)
+//                                    shape.end = mutableListOf(shape.end[0] + dx, shape.end[1] + dy)
+//                                }
+//
+//                                is Shape.Polygon -> {
+//                                    shape.points = shape.points.map { point ->
+//                                        mutableListOf(point[0] + dx, point[1] + dy)
+//                                    }.toMutableList()
+//                                }
+//                            }
+//                            canvas.lastTouchX = event.x
+//                            canvas.lastTouchY = event.y
+//                        }
+//
+//                        canvas.currentShape ?: canvas.currentStroke?.points?.add(Pair(event.x, event.y))
+//                        canvas.invalidate()
+//                        true
+//                    }
+//                }
+//
+//                MotionEvent.ACTION_UP -> {
+//                    canvas.currentStroke?.let { viewModel.addStroke(it) }
+//                    canvas.currentStroke = null
+//                    canvas.currentShape = null
+//                    canvas.isResizing = false
+//                    canvas.resizeShape = null
+//                    true
+//                }
+//
+//                else -> false
+//            }
+//        }
     }
 
     private fun saveCanvas() {
@@ -339,7 +345,8 @@ class MainActivity : AppCompatActivity() {
                         val rect = Shape.Rectangle(
                             topLeft = mutableListOf(100f, 100f),
                             bottomRight = mutableListOf(300f, 200f),
-                            color = viewModel.currentColor
+                            color = viewModel.currentColor,
+                            strokeWidth = viewModel.currentWidth
                         )
                         viewModel.addShape(rect)
                     }
@@ -348,7 +355,8 @@ class MainActivity : AppCompatActivity() {
                         val circle = Shape.Circle(
                             center = listOf(400f, 400f) as MutableList<Float>,
                             radius = 100f,
-                            color = viewModel.currentColor
+                            color = viewModel.currentColor,
+                            strokeWidth = viewModel.currentWidth
                         )
 
                         viewModel.addShape(circle)
@@ -358,7 +366,8 @@ class MainActivity : AppCompatActivity() {
                         val line = Shape.Line(
                             start = mutableListOf(50f, 50f),
                             end = mutableListOf(300f, 300f),
-                            color = viewModel.currentColor
+                            color = viewModel.currentColor,
+                            strokeWidth = viewModel.currentWidth
                         )
                         viewModel.addShape(line)
                     }
@@ -368,12 +377,13 @@ class MainActivity : AppCompatActivity() {
                         val polygon = Shape.Polygon(
                             points =
                             mutableListOf(
-                                listOf(200f, 200f),
-                                listOf(300f, 150f),
-                                listOf(400f, 250f),
-                                listOf(300f, 300f)
+                                mutableListOf(200f, 200f),
+                                mutableListOf(300f, 150f),
+                                mutableListOf(400f, 250f),
+                                mutableListOf(300f, 300f)
                             ),
-                            color = viewModel.currentColor
+                            color = viewModel.currentColor,
+                            strokeWidth = viewModel.currentWidth
                         )
 
                         viewModel.addShape(polygon)
@@ -406,4 +416,5 @@ class MainActivity : AppCompatActivity() {
             .setNegativeButton("Cancel", null)
             .show()
     }
+
 }

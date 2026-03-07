@@ -5,24 +5,30 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.Rect
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
+import androidx.lifecycle.ViewModel
 import com.example.whiteboardapp.models.Shape
 import com.example.whiteboardapp.models.Stroke
 import com.example.whiteboardapp.models.TextItem
+import kotlin.math.hypot
 
 class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(context, attrs) {
-    var selectedPolygonPointIndex = -1
 
     private val paint = Paint().apply {
         isAntiAlias = true
         style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
     }
 
-    var strokes: List<Stroke> = emptyList()
-    var shapes: List<Shape> = emptyList()
-    var texts: List<TextItem> = emptyList()
+    private val path = Path()
+
+    var strokes: MutableList<Stroke> = mutableListOf()
+    var shapes: MutableList<Shape> = mutableListOf()
+    var texts: MutableList<TextItem> = mutableListOf()
 
     var currentStroke: Stroke? = null
 
@@ -30,12 +36,17 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
     var currentShape: Shape? = null
     var lastTouchX = 0f
     var lastTouchY = 0f
-
     var isResizing = false
     var resizeShape: Shape? = null
-    var resizeStartX = 0f
-    var resizeStartY = 0f
     val handleRadius = 30f
+
+    private var selectedVertexIndex = -1
+    var textClickListener: ((TextItem) -> Unit)? = null
+
+    private var currentText: TextItem? = null
+
+    private var lastTapTime = 0L
+    private val doubleTapDelay = 300
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
@@ -52,18 +63,6 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
             canvas.drawPath(path, paint)
         }
 
-        // Draw current stroke (during touch)
-        currentStroke?.let { stroke ->
-            paint.color = stroke.color
-            paint.strokeWidth = stroke.width
-            val path = Path()
-            stroke.points.forEachIndexed { i, p ->
-                if (i == 0) path.moveTo(p.first, p.second)
-                else path.lineTo(p.first, p.second)
-            }
-            canvas.drawPath(path, paint)
-        }
-
         // Draw shapes
         shapes.forEach { shape ->
             paint.style = Paint.Style.STROKE
@@ -73,8 +72,13 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
                 is Shape.Line -> shape.color
                 is Shape.Polygon -> shape.color
             }
-            paint.strokeWidth = 5f
 
+            paint.strokeWidth = when (shape) {
+                is Shape.Rectangle -> shape.strokeWidth
+                is Shape.Circle -> shape.strokeWidth
+                is Shape.Line -> shape.strokeWidth
+                is Shape.Polygon -> shape.strokeWidth
+            }
             when (shape) {
                 is Shape.Rectangle -> canvas.drawRect(
                     shape.topLeft[0],
@@ -142,61 +146,12 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
     // -------------------------------
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.action) {
-            MotionEvent.ACTION_DOWN -> {
-                lastTouchX = event.x
-                lastTouchY = event.y
-                // Check if touching existing shape
-                currentShape = findShapeAt(event.x, event.y)
-            }
-            MotionEvent.ACTION_MOVE -> {
-                currentShape?.let { shape ->
-                    val dx = event.x - lastTouchX
-                    val dy = event.y - lastTouchY
-
-                    when (shape) {
-                        is Shape.Rectangle -> {
-                            shape.topLeft = listOf(
-                                shape.topLeft[0] + dx,
-                                shape.topLeft[1] + dy
-                            ) as MutableList<Float>
-
-                            shape.bottomRight = listOf(
-                                shape.bottomRight[0] + dx,
-                                shape.bottomRight[1] + dy
-                            ) as MutableList<Float>
-                        }
-                        is Shape.Circle -> {
-
-                            val newX = shape.center[0] + dx
-                            val newY = shape.center[1] + dy
-
-                            shape.center = listOf(newX, newY) as MutableList<Float>
-                        }
-                        is Shape.Line -> {
-                            shape.start = shape.start
-                            shape.end = shape.end
-                        }
-                        is Shape.Polygon -> {
-
-                            // Move all points by dx, dy
-                            shape.points = shape.points.map { point ->
-                                listOf(point[0] + dx, point[1] + dy)
-                            }.toMutableList()
-                        }
-                    }
-
-                    lastTouchX = event.x
-                    lastTouchY = event.y
-                    invalidate()
-                }
-            }
-            MotionEvent.ACTION_UP -> {
-                currentShape = null
-            }
+            MotionEvent.ACTION_DOWN -> handleActionDown(event)
+            MotionEvent.ACTION_MOVE -> handleActionMove(event)
+            MotionEvent.ACTION_UP -> handleActionUp()
         }
         return true
     }
-
     // Find the topmost shape under touch
     fun findShapeAt(x: Float, y: Float): Shape? {
         return shapes.reversed().find { shape ->
@@ -218,6 +173,7 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
                 }
                 is Shape.Polygon ->
                     pointInPolygon(listOf(x, y), shape.points)
+
             }
         }
     }
@@ -249,22 +205,270 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
 
     private fun pointInPolygon(point: List<Float>, polygon: List<List<Float>>): Boolean {
 
-        var intersects = 0
+        val x = point[0]
+        val y = point[1]
+
+        var inside = false
+        var j = polygon.size - 1
 
         for (i in polygon.indices) {
 
-            val j = (i + 1) % polygon.size
+            val xi = polygon[i][0]
+            val yi = polygon[i][1]
 
-            if (
-                ((polygon[i][1] > point[1]) != (polygon[j][1] > point[1])) &&
-                (point[0] < (polygon[j][0] - polygon[i][0]) *
-                        (point[1] - polygon[i][1]) /
-                        (polygon[j][1] - polygon[i][1]) + polygon[i][0])
-            ) {
-                intersects++
+            val xj = polygon[j][0]
+            val yj = polygon[j][1]
+
+            val intersect =
+                ((yi > y) != (yj > y)) &&
+                        (x < (xj - xi) * (y - yi) / (yj - yi + 0.000001f) + xi)
+
+            if (intersect) inside = !inside
+
+            j = i
+        }
+
+        return inside
+    }
+    private fun handleActionDown(event: MotionEvent) {
+
+        lastTouchX = event.x
+        lastTouchY = event.y
+
+        currentStroke?.points?.add(Pair(event.x, event.y))
+
+        // detect which shape is touched
+        currentShape = findShapeAt(event.x, event.y)
+
+        // check resize handle
+        resizeShape = currentShape?.takeIf { shape ->
+
+            when (shape) {
+
+                is Shape.Rectangle -> {
+                    val handle = shape.getResizeHandle()
+                    val dx = handle[0] - event.x
+                    val dy = handle[1] - event.y
+                    dx * dx + dy * dy <= handleRadius * handleRadius
+                }
+
+                is Shape.Circle -> {
+
+                    val dx = event.x - shape.center[0]
+                    val dy = event.y - shape.center[1]
+                    val distance = hypot(dx, dy)
+                    kotlin.math.abs(distance - shape.radius) <= handleRadius
+                }
+
+                is Shape.Line -> {
+                    val dx = shape.end[0] - event.x
+                    val dy = shape.end[1] - event.y
+                    dx * dx + dy * dy <= handleRadius * handleRadius
+                }
+
+                is Shape.Polygon -> {
+
+                    val vertexIndex = findPolygonVertex(shape, event.x, event.y)
+
+                    if (vertexIndex != -1) {
+
+                        selectedVertexIndex = vertexIndex
+                        true
+                    } else {
+                        false
+                    }
+                }
+                else -> false
             }
         }
 
-        return intersects % 2 == 1
+        isResizing = resizeShape != null
+
+        val clickedText = findTextAt(event.x, event.y)
+
+        if (clickedText != null) {
+
+            val currentTime = System.currentTimeMillis()
+
+            if (currentTime - lastTapTime < doubleTapDelay) {
+                // double tap detected
+                textClickListener?.invoke(clickedText)
+            }
+
+            lastTapTime = currentTime
+
+            currentText = clickedText
+
+            return
+        }
     }
+    private fun findPolygonVertex(shape: Shape.Polygon, x: Float, y: Float): Int {
+
+        shape.points.forEachIndexed { index, point ->
+
+            val dx = point[0] - x
+            val dy = point[1] - y
+
+            if (dx * dx + dy * dy <= handleRadius * handleRadius) {
+                return index
+            }
+        }
+
+        return -1
+    }
+    private fun handleActionMove(event: MotionEvent) {
+
+        val dx = event.x - lastTouchX
+        val dy = event.y - lastTouchY
+
+        currentStroke?.points?.add(Pair(event.x, event.y))
+
+        currentText?.let { text ->
+
+            val dx = event.x - lastTouchX
+            val dy = event.y - lastTouchY
+
+            text.position = Pair(
+                text.position.first + dx,
+                text.position.second + dy
+            )
+
+            lastTouchX = event.x
+            lastTouchY = event.y
+
+            invalidate()
+            return
+        }
+
+        if (isResizing && resizeShape != null) {
+
+            when (val shape = resizeShape!!) {
+
+                is Shape.Rectangle -> {
+                    shape.bottomRight[0] = event.x
+                    shape.bottomRight[1] = event.y
+                }
+
+                is Shape.Circle -> {
+                    val dx = event.x - shape.center[0]
+                    val dy = event.y - shape.center[1]
+                    val newRadius = hypot(dx, dy)
+                    shape.radius = newRadius
+                }
+
+                is Shape.Line -> {
+                    shape.end[0] = event.x
+                    shape.end[1] = event.y
+                }
+                is Shape.Polygon -> {
+
+                    if (selectedVertexIndex != -1) {
+
+                        val vertex = shape.points[selectedVertexIndex]
+
+                        vertex[0] = event.x
+                        vertex[1] = event.y
+                    }
+                }
+
+                else -> {}
+            }
+
+        } else if (currentShape != null) {
+
+            when (val shape = currentShape!!) {
+
+                is Shape.Rectangle -> {
+                    shape.topLeft[0] += dx
+                    shape.topLeft[1] += dy
+                    shape.bottomRight[0] += dx
+                    shape.bottomRight[1] += dy
+                }
+
+                is Shape.Circle -> {
+                    shape.center[0] += dx
+                    shape.center[1] += dy
+                }
+
+                is Shape.Line -> {
+                    shape.start[0] += dx
+                    shape.start[1] += dy
+                    shape.end[0] += dx
+                    shape.end[1] += dy
+                }
+
+                is Shape.Polygon -> {
+                    shape.points.forEach {
+
+                        it[0] += dx
+                        it[1] += dy
+                    }
+                }
+                else -> {}
+            }
+        }
+
+        lastTouchX = event.x
+        lastTouchY = event.y
+
+        invalidate()
+    }
+    private fun handleActionUp() {
+        isResizing = false
+        resizeShape = null
+        currentShape = null
+        selectedVertexIndex = -1
+        currentText = null
+    }
+
+    private fun distanceToSegment(
+        px: Float,
+        py: Float,
+        x1: Float,
+        y1: Float,
+        x2: Float,
+        y2: Float
+    ): Float {
+
+        val dx = x2 - x1
+        val dy = y2 - y1
+
+        val lengthSquared = dx * dx + dy * dy
+
+        if (lengthSquared == 0f) return hypot(px - x1, py - y1)
+
+        val t = ((px - x1) * dx + (py - y1) * dy) / lengthSquared
+
+        val clampedT = t.coerceIn(0f, 1f)
+
+        val projX = x1 + clampedT * dx
+        val projY = y1 + clampedT * dy
+
+        return hypot(px - projX, py - projY)
+    }
+
+    fun findTextAt(x: Float, y: Float): TextItem? {
+
+        val textPaint = Paint()
+            texts.forEach { text ->
+
+                textPaint.textSize = text.size
+
+                val bounds = Rect()
+                textPaint.getTextBounds(text.text, 0, text.text.length, bounds)
+
+                val left = text.position.first
+                val top = text.position.second - bounds.height()
+                val right = left + bounds.width()
+                val bottom = text.position.second
+
+                if (x >= left && x <= right && y >= top && y <= bottom) {
+                    return text
+                }
+            }
+
+        return null
+    }
+
+
 }
