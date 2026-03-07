@@ -1,18 +1,21 @@
 package com.example.whiteboardapp.views
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Rect
 import android.util.AttributeSet
+import android.util.Log
 import android.view.MotionEvent
 import android.view.View
-import androidx.lifecycle.ViewModel
 import com.example.whiteboardapp.models.Shape
 import com.example.whiteboardapp.models.Stroke
 import com.example.whiteboardapp.models.TextItem
+import java.io.File
+import java.io.FileOutputStream
 import kotlin.math.hypot
 
 class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(context, attrs) {
@@ -24,7 +27,6 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
         strokeJoin = Paint.Join.ROUND
     }
 
-    private val path = Path()
 
     var strokes: MutableList<Stroke> = mutableListOf()
     var shapes: MutableList<Shape> = mutableListOf()
@@ -47,6 +49,17 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
 
     private var lastTapTime = 0L
     private val doubleTapDelay = 300
+    var eraserMode = false
+
+    private var eraserX = 0f
+    private var eraserY = 0f
+    private val eraserRadius = 50f
+
+    private val eraserPaint = Paint().apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 3f
+        color = Color.GRAY
+    }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
@@ -61,6 +74,10 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
                 else path.lineTo(point.first, point.second)
             }
             canvas.drawPath(path, paint)
+        }
+
+        if (eraserMode) {
+            canvas.drawCircle(eraserX, eraserY, eraserRadius, eraserPaint)
         }
 
         // Draw shapes
@@ -145,6 +162,16 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
     // Touch events for dragging shapes
     // -------------------------------
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (eraserMode) {
+
+            eraserX = event.x
+            eraserY = event.y
+
+            eraseAt(event.x, event.y)
+            invalidate()
+            return true
+        }
+
         when (event.action) {
             MotionEvent.ACTION_DOWN -> handleActionDown(event)
             MotionEvent.ACTION_MOVE -> handleActionMove(event)
@@ -470,5 +497,88 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
         return null
     }
 
+
+    private fun isTouchInsideShape(shape: Shape, x: Float, y: Float): Boolean {
+        return when(shape) {
+            is Shape.Rectangle -> {
+                val left = shape.topLeft[0]
+                val top = shape.topLeft[1]
+                val right = shape.bottomRight[0]
+                val bottom = shape.bottomRight[1]
+                x >= left && x <= right && y >= top && y <= bottom
+            }
+            is Shape.Circle -> {
+                val dx = x - shape.center[0]
+                val dy = y - shape.center[1]
+                dx * dx + dy * dy <= shape.radius * shape.radius
+            }
+            is Shape.Line -> {
+                // Simple distance from point to line segment
+                val x1 = shape.start[0]
+                val y1 = shape.start[1]
+                val x2 = shape.end[0]
+                val y2 = shape.end[1]
+
+                val distance = distanceToLineSegment(x, y, x1, y1, x2, y2)
+                distance <= shape.strokeWidth / 2
+            }
+            is Shape.Polygon -> {
+                pointInPolygon(x, y, shape.points)
+            }
+        }
+    }
+
+    // Helper for line distance
+    private fun distanceToLineSegment(px: Float, py: Float, x1: Float, y1: Float, x2: Float, y2: Float): Float {
+        val dx = x2 - x1
+        val dy = y2 - y1
+        if (dx == 0f && dy == 0f) return Math.hypot((px - x1).toDouble(), (py - y1).toDouble()).toFloat()
+        val t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)
+        val clampedT = t.coerceIn(0f, 1f)
+        val nearestX = x1 + clampedT * dx
+        val nearestY = y1 + clampedT * dy
+        return Math.hypot((px - nearestX).toDouble(), (py - nearestY).toDouble()).toFloat()
+    }
+
+    // Helper for polygon
+    private fun pointInPolygon(x: Float, y: Float, polygon: List<List<Float>>): Boolean {
+        var intersects = 0
+        for (i in polygon.indices) {
+            val j = (i + 1) % polygon.size
+            if (((polygon[i][1] > y) != (polygon[j][1] > y)) &&
+                (x < (polygon[j][0] - polygon[i][0]) * (y - polygon[i][1]) / (polygon[j][1] - polygon[i][1]) + polygon[i][0])
+            ) {
+                intersects++
+            }
+        }
+        return intersects % 2 == 1
+    }
+
+    private fun eraseAt(x: Float, y: Float) {
+
+        // erase stroke points
+        strokes.forEach { stroke ->
+
+            stroke.points.removeAll { point ->
+
+                val dx = point.first - x
+                val dy = point.second - y
+
+                dx * dx + dy * dy < eraserRadius * eraserRadius
+            }
+        }
+
+        // remove empty strokes
+        strokes.removeAll { it.points.isEmpty() }
+
+        // erase text
+        texts.removeAll { text ->
+
+            val dx = text.position.first - x
+            val dy = text.position.second - y
+
+            dx * dx + dy * dy < eraserRadius * eraserRadius
+        }
+    }
 
 }

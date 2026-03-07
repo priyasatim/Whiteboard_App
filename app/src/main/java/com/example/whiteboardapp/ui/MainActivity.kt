@@ -2,11 +2,15 @@ package com.example.whiteboardapp.ui
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
 import android.os.Bundle
+import android.os.Environment
 import android.text.InputType
+import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -34,6 +38,8 @@ import com.example.whiteboardapp.views.DrawingCanvas
 import com.google.gson.Gson
 import kotlinx.coroutines.launch
 import androidx.core.graphics.toColorInt
+import java.io.File
+import java.io.FileOutputStream
 
 class MainActivity : AppCompatActivity() {
     private val viewModel: WhiteboardViewModel by viewModels()
@@ -89,6 +95,20 @@ class MainActivity : AppCompatActivity() {
         binding.ivAddShape.setOnClickListener {
             showShapeDialog(this)
         }
+
+        // ----- Erase -----
+        binding.ivErase.setOnClickListener {
+            canvasView.eraserMode = !canvasView.eraserMode
+        }
+
+        binding.ivErase.setOnClickListener {
+            val file =
+                File(this.getExternalFilesDir(Environment.DIRECTORY_PICTURES), "whiteboard.png")
+            saveCanvas()
+            Toast.makeText(this, "Saved to ${file.absolutePath}", Toast.LENGTH_SHORT).show()
+
+        }
+
 
         // ----- Text -----
         binding.ivText.setOnClickListener {
@@ -415,6 +435,28 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    fun saveCanvasAsPNG(canvasView: View, file: File) {
+        // Create a bitmap the size of the view
+        val bitmap = Bitmap.createBitmap(
+            canvasView.width,
+            canvasView.height,
+            Bitmap.Config.ARGB_8888
+        )
+        // Draw the view onto the bitmap
+        val canvas = Canvas(bitmap)
+        canvasView.draw(canvas)
+
+        // Save bitmap as PNG
+        try {
+            FileOutputStream(file).use { out ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            }
+            Log.d("SavePNG", "Saved to ${file.absolutePath}")
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
 }
