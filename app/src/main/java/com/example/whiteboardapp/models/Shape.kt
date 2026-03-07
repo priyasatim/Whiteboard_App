@@ -1,7 +1,7 @@
 package com.example.whiteboardapp.models
 
 sealed class Shape {
-    data class Rectangle(val type: String = "rectangle",var topLeft: List<Float>, var bottomRight: List<Float>, var color: Int) : Shape(){
+    data class Rectangle(val type: String = "rectangle",var topLeft: MutableList<Float>, var bottomRight: MutableList<Float>, var color: Int) : Shape(){
         fun getResizeHandle(): List<Float> = bottomRight
     }
     data class Circle(

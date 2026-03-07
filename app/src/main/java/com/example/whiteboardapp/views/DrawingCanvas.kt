@@ -158,12 +158,12 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
                             shape.topLeft = listOf(
                                 shape.topLeft[0] + dx,
                                 shape.topLeft[1] + dy
-                            )
+                            ) as MutableList<Float>
 
                             shape.bottomRight = listOf(
                                 shape.bottomRight[0] + dx,
                                 shape.bottomRight[1] + dy
-                            )
+                            ) as MutableList<Float>
                         }
                         is Shape.Circle -> {
 

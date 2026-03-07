@@ -1,5 +1,6 @@
 package com.example.whiteboardapp.ui
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Paint
@@ -38,6 +39,7 @@ class MainActivity : AppCompatActivity() {
     private val viewModel: WhiteboardViewModel by viewModels()
     private lateinit var binding: ActivityMainBinding
 
+    @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -84,8 +86,15 @@ class MainActivity : AppCompatActivity() {
 
         // ----- Text -----
         binding.btnText.setOnClickListener {
-            val text = TextItem("Hello!", Pair(200f, 500f), viewModel.currentColor, 48f)
+            val lastY = viewModel.texts.value.lastOrNull()?.position?.second ?: 500f
+            val text = TextItem(
+                "Hello!",
+                Pair(200f, lastY + 60f), // offset new text
+                viewModel.currentColor,
+                48f
+            )
             viewModel.addText(text)
+            binding.drawingCanvas.invalidate() // redraw canvas
         }
 
         // ----- Save -----
@@ -171,23 +180,6 @@ class MainActivity : AppCompatActivity() {
                         if (tappedText != null) {
                             // User tapped an existing text → open edit dialog
                             showEditTextDialog(tappedText)
-                        } else {
-                            // No existing text → insert new TextItem
-                            val newText = TextItem(
-                                text = "Hello!",
-                                position = Pair(event.x, event.y),
-                                color = viewModel.currentColor,
-                                size = 48f
-                            )
-                            viewModel.addText(newText)
-
-                            // Or if you also want to start a stroke at this point
-                            val stroke = Stroke(
-                                mutableListOf(Pair(event.x, event.y)),
-                                viewModel.currentColor,
-                                viewModel.currentWidth
-                            )
-                            canvas.currentStroke = stroke
                         }
                         canvas.lastTouchX = event.x
                         canvas.lastTouchY = event.y
@@ -204,7 +196,7 @@ class MainActivity : AppCompatActivity() {
                                 shape.bottomRight = listOf(
                                     shape.bottomRight[0] + dx,
                                     shape.bottomRight[1] + dy
-                                )
+                                ) as MutableList<Float>
                             }
                             is Shape.Circle -> {
                                 val handle = shape.getResizeHandle()
@@ -244,11 +236,11 @@ class MainActivity : AppCompatActivity() {
                                     shape.topLeft = listOf(
                                         shape.topLeft[0] + dx,
                                         shape.topLeft[1] + dy
-                                    )
+                                    ) as MutableList<Float>
                                     shape.bottomRight = listOf(
                                         shape.bottomRight[0] + dx,
                                         shape.bottomRight[1] + dy
-                                    )
+                                    ) as MutableList<Float>
                                 }
                                 is Shape.Circle -> {
                                     val newX = shape.center[0] + dx
@@ -398,6 +390,7 @@ class MainActivity : AppCompatActivity() {
         val editText = EditText(this)
         editText.setText(textItem.text)
         editText.inputType = InputType.TYPE_CLASS_TEXT
+        val canvasView = findViewById<DrawingCanvas>(R.id.drawingCanvas)
 
         // 2️⃣ Build and show AlertDialog
         AlertDialog.Builder(this)
@@ -408,6 +401,7 @@ class MainActivity : AppCompatActivity() {
                 textItem.text = editText.text.toString()
                 // If using StateFlow, update the ViewModel
                 viewModel.updateText(textItem)
+                canvasView.invalidate()  // Forces redraw
             }
             .setNegativeButton("Cancel", null)
             .show()
