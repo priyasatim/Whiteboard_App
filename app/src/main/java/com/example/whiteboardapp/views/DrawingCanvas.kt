@@ -14,6 +14,7 @@ import android.view.View
 import com.example.whiteboardapp.models.Shape
 import com.example.whiteboardapp.models.Stroke
 import com.example.whiteboardapp.models.TextItem
+import com.example.whiteboardapp.viewmodels.WhiteboardViewModel
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.hypot
@@ -27,12 +28,9 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
         strokeJoin = Paint.Join.ROUND
     }
 
-
     var strokes: MutableList<Stroke> = mutableListOf()
     var shapes: MutableList<Shape> = mutableListOf()
     var texts: MutableList<TextItem> = mutableListOf()
-
-    var currentStroke: Stroke? = null
 
     // For drag functionality
     var currentShape: Shape? = null
@@ -55,29 +53,32 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
     private var eraserY = 0f
     private val eraserRadius = 50f
 
-    private val eraserPaint = Paint().apply {
-        style = Paint.Style.STROKE
-        strokeWidth = 3f
-        color = Color.GRAY
-    }
+    lateinit var viewModel: WhiteboardViewModel
+
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
         // Draw strokes
-        strokes.forEach { stroke ->
+        for (stroke in strokes) {
+
             paint.color = stroke.color
             paint.strokeWidth = stroke.width
-            val path = Path()
-            stroke.points.forEachIndexed { index, point ->
-                if (index == 0) path.moveTo(point.first, point.second)
-                else path.lineTo(point.first, point.second)
-            }
-            canvas.drawPath(path, paint)
-        }
 
-        if (eraserMode) {
-            canvas.drawCircle(eraserX, eraserY, eraserRadius, eraserPaint)
+            val path = Path()
+
+            if (stroke.points.isNotEmpty()) {
+
+                val first = stroke.points.first()
+                path.moveTo(first.get(0), first.get(1))
+
+                for (i in 1 until stroke.points.size) {
+                    val p = stroke.points[i]
+                    path.lineTo(p.get(0), p.get(1))
+                }
+
+                canvas.drawPath(path, paint)
+            }
         }
 
         // Draw shapes
@@ -156,6 +157,26 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
             paint.textSize = text.size
             canvas.drawText(text.text, text.position.first, text.position.second, paint)
         }
+
+        // -----------------------
+        // Draw eraser highlight
+        // -----------------------
+        if (eraserMode) {
+            val highlightPaint = Paint().apply {
+                style = Paint.Style.STROKE
+                color = Color.GRAY
+                strokeWidth = 2f
+                alpha = 150 // semi-transparent
+            }
+            val fillPaint = Paint().apply {
+                style = Paint.Style.FILL
+                color = Color.LTGRAY
+                alpha = 50 // very light semi-transparent
+            }
+
+            canvas.drawCircle(eraserX, eraserY, eraserRadius, fillPaint)
+            canvas.drawCircle(eraserX, eraserY, eraserRadius, highlightPaint)
+        }
     }
 
     // -------------------------------
@@ -167,13 +188,14 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
             eraserX = event.x
             eraserY = event.y
 
-            eraseAt(event.x, event.y)
+            eraseAt(event.x, event.y, eraserRadius)
             invalidate()
             return true
         }
+        val toolType = event.getToolType(0)
 
         when (event.action) {
-            MotionEvent.ACTION_DOWN -> handleActionDown(event)
+            MotionEvent.ACTION_DOWN -> handleActionDown(event,toolType)
             MotionEvent.ACTION_MOVE -> handleActionMove(event)
             MotionEvent.ACTION_UP -> handleActionUp()
         }
@@ -257,12 +279,19 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
 
         return inside
     }
-    private fun handleActionDown(event: MotionEvent) {
+    private fun handleActionDown(event: MotionEvent,toolType : Int) {
 
         lastTouchX = event.x
         lastTouchY = event.y
+        var width = viewModel.currentWidth
 
-        currentStroke?.points?.add(Pair(event.x, event.y))
+        if (toolType == MotionEvent.TOOL_TYPE_STYLUS) {
+            Log.d("INPUT", "Stylus DOWN")
+            val pressure = event.pressure
+            width = 3f + pressure * 15f
+        }
+
+        viewModel.startStroke(event.x, event.y,width)
 
         // detect which shape is touched
         currentShape = findShapeAt(event.x, event.y)
@@ -348,7 +377,7 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
         val dx = event.x - lastTouchX
         val dy = event.y - lastTouchY
 
-        currentStroke?.points?.add(Pair(event.x, event.y))
+        viewModel.continueStroke(event.x, event.y)
 
         currentText?.let { text ->
 
@@ -529,7 +558,7 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
     }
 
     // Helper for line distance
-    private fun distanceToLineSegment(px: Float, py: Float, x1: Float, y1: Float, x2: Float, y2: Float): Float {
+    fun distanceToLineSegment(px: Float, py: Float, x1: Float, y1: Float, x2: Float, y2: Float): Float {
         val dx = x2 - x1
         val dy = y2 - y1
         if (dx == 0f && dy == 0f) return Math.hypot((px - x1).toDouble(), (py - y1).toDouble()).toFloat()
@@ -554,31 +583,59 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
         return intersects % 2 == 1
     }
 
-    private fun eraseAt(x: Float, y: Float) {
-
-        // erase stroke points
-        strokes.forEach { stroke ->
-
-            stroke.points.removeAll { point ->
-
-                val dx = point.first - x
-                val dy = point.second - y
-
-                dx * dx + dy * dy < eraserRadius * eraserRadius
+    fun findTopShapeAt(x: Float, y: Float, eraserRadius: Float): Shape? {
+        return shapes.reversed().find { shape ->
+            when (shape) {
+                is Shape.Rectangle -> x in shape.topLeft[0]..shape.bottomRight[0] &&
+                        y in shape.topLeft[1]..shape.bottomRight[1]
+                is Shape.Circle -> {
+                    val dx = x - shape.center[0]
+                    val dy = y - shape.center[1]
+                    dx * dx + dy * dy <= shape.radius * shape.radius
+                }
+                is Shape.Line -> {
+                    val distance = distanceToLineSegment(x, y, shape.start[0], shape.start[1], shape.end[0], shape.end[1])
+                    distance <= shape.strokeWidth / 2 + eraserRadius
+                }
+                is Shape.Polygon -> pointInPolygon(x, y, shape.points)
+                else -> false
             }
-        }
-
-        // remove empty strokes
-        strokes.removeAll { it.points.isEmpty() }
-
-        // erase text
-        texts.removeAll { text ->
-
-            val dx = text.position.first - x
-            val dy = text.position.second - y
-
-            dx * dx + dy * dy < eraserRadius * eraserRadius
         }
     }
 
+    fun eraseAt(x: Float, y: Float, eraserRadius: Float) {
+
+        // 1️⃣ Remove stroke points inside eraser
+        val updatedStrokes = strokes.map { stroke ->
+            val newPoints = stroke.points.filter { point ->
+                val dx = point.get(0) - x
+                val dy = point.get(1) - y
+                dx * dx + dy * dy >= eraserRadius * eraserRadius
+            }
+            // Also update ViewModel
+            viewModel.addStroke(stroke)
+
+            stroke.copy(points = newPoints.toMutableList())
+        }.filter { it.points.isNotEmpty() }
+        strokes = updatedStrokes.toMutableList()
+
+        // 2️⃣ Remove topmost shape only
+        val shapeToRemove = findTopShapeAt(x, y, eraserRadius)
+        shapeToRemove?.let {
+            shapes = shapes.toMutableList().apply { remove(it) }
+            // Update ViewModel
+            viewModel.shapes.value = shapes
+        }
+
+        // 3️⃣ Remove text inside eraser
+        val updatedTexts = texts.filterNot { text ->
+            val dx = text.position.first - x
+            val dy = text.position.second - y
+            dx * dx + dy * dy < eraserRadius * eraserRadius
+        }
+        texts = updatedTexts.toMutableList()
+        viewModel._texts.value = texts
+
+        invalidate()
+    }
 }

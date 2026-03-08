@@ -17,6 +17,21 @@
         android:weightSum="6"
         android:layout_marginBottom="8dp">
 
+        <ImageView
+            android:id="@+id/iv_undo"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:padding="6dp"
+            android:src="@drawable/ic_text"/>
+
+        <ImageView
+            android:id="@+id/iv_redo"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:padding="6dp"
+            android:src="@drawable/ic_text"/>
 
         <!-- Stroke width buttons -->
         <Button

@@ -15,15 +15,17 @@ class WhiteboardViewModel : ViewModel() {
     val strokes: StateFlow<List<Stroke>> = _strokes
 
     private val _shapes = MutableStateFlow<List<Shape>>(emptyList())
-    val shapes: StateFlow<List<Shape>> = _shapes
+    var shapes: MutableStateFlow<List<Shape>> = _shapes
 
-    private val _texts = MutableStateFlow<List<TextItem>>(emptyList())
-    val texts: StateFlow<List<TextItem>> = _texts
+    val _texts = MutableStateFlow<List<TextItem>>(emptyList())
+    var texts: MutableStateFlow<List<TextItem>> = _texts
 
 
     // Current drawing options
     var currentColor = "#000000".toColorInt()
     var currentWidth = 5f
+    var currentStroke: Stroke? = null
+    private val redoStack = mutableListOf<Stroke>()
 
 
     // Change brush color
@@ -52,5 +54,52 @@ class WhiteboardViewModel : ViewModel() {
             if (text.position == updatedText.position) updatedText else text
         }
     }
+
+    fun addStroke(stroke: Stroke) {
+        _strokes.value = _strokes.value + stroke
+        redoStack.clear()
+    }
+
+    fun startStroke(x: Float, y: Float,width : Float) {
+
+        currentStroke = Stroke(
+            points = mutableListOf(),
+            color = currentColor,
+            width = width
+        )
+
+        currentStroke?.points?.add(listOf(x, y))
+
+        addStroke(currentStroke!!)
+    }
+
+    fun continueStroke(x: Float, y: Float) {
+        currentStroke?.points?.add(listOf(x, y))
+    }
+
+    fun undo() {
+
+        val current = _strokes.value
+
+        if (current.isNotEmpty()) {
+
+            val lastStroke = current.last()
+
+            redoStack.add(lastStroke)
+
+            _strokes.value = current.dropLast(1)
+        }
+    }
+
+    fun redo() {
+
+        if (redoStack.isNotEmpty()) {
+
+            val stroke = redoStack.removeAt(redoStack.lastIndex)
+
+            _strokes.value = _strokes.value + stroke
+        }
+    }
+
 
 }

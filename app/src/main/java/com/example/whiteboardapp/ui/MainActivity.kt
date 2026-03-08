@@ -75,6 +75,8 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        binding.drawingCanvas.viewModel = viewModel
+
         // ----- Color buttons -----
         binding.colorPalette.colorRed.setOnClickListener { viewModel.changeColor("#FF0000".toColorInt()) }
         binding.colorPalette.colorBlue.setOnClickListener { viewModel.changeColor("#0000FF".toColorInt()) }
@@ -101,7 +103,7 @@ class MainActivity : AppCompatActivity() {
             canvasView.eraserMode = !canvasView.eraserMode
         }
 
-        binding.ivErase.setOnClickListener {
+        binding.ivPng.setOnClickListener {
             val file =
                 File(this.getExternalFilesDir(Environment.DIRECTORY_PICTURES), "whiteboard.png")
             saveCanvas()
@@ -127,6 +129,19 @@ class MainActivity : AppCompatActivity() {
         binding.ivSave.setOnClickListener {
             saveCanvas()
         }
+
+
+        binding.ivUndo.setOnClickListener {
+            viewModel.undo()
+            binding.drawingCanvas.invalidate()
+        }
+
+
+        binding.ivRedo.setOnClickListener {
+            viewModel.redo()
+            binding.drawingCanvas.invalidate()
+        }
+
 
         // ----- Touch on canvas for freehand -----
 //        binding.drawingCanvas.setOnTouchListener { v, event ->
