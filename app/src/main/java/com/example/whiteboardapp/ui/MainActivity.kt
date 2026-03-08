@@ -3,6 +3,7 @@ package com.example.whiteboardapp.ui
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -104,11 +105,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.ivPng.setOnClickListener {
-            val file =
-                File(this.getExternalFilesDir(Environment.DIRECTORY_PICTURES), "whiteboard.png")
-            saveCanvas()
-            Toast.makeText(this, "Saved to ${file.absolutePath}", Toast.LENGTH_SHORT).show()
+            val file = saveCanvasAsPNG()
+            val bitmap = BitmapFactory.decodeFile(file.absolutePath)
 
+            binding.ivPreview.setImageBitmap(bitmap)
         }
 
 
@@ -131,16 +131,16 @@ class MainActivity : AppCompatActivity() {
         }
 
 
-        binding.ivUndo.setOnClickListener {
-            viewModel.undo()
-            binding.drawingCanvas.invalidate()
-        }
-
-
-        binding.ivRedo.setOnClickListener {
-            viewModel.redo()
-            binding.drawingCanvas.invalidate()
-        }
+//        binding.ivUndo.setOnClickListener {
+//            viewModel.undo()
+//            binding.drawingCanvas.invalidate()
+//        }
+//
+//
+//        binding.ivRedo.setOnClickListener {
+//            viewModel.redo()
+//            binding.drawingCanvas.invalidate()
+//        }
 
 
         // ----- Touch on canvas for freehand -----
@@ -452,26 +452,27 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    fun saveCanvasAsPNG(canvasView: View, file: File) {
-        // Create a bitmap the size of the view
+    private fun saveCanvasAsPNG(): File {
+
         val bitmap = Bitmap.createBitmap(
-            canvasView.width,
-            canvasView.height,
+            binding.drawingCanvas.width,
+            binding.drawingCanvas.height,
             Bitmap.Config.ARGB_8888
         )
-        // Draw the view onto the bitmap
+
         val canvas = Canvas(bitmap)
-        canvasView.draw(canvas)
+        binding.drawingCanvas.draw(canvas)
 
-        // Save bitmap as PNG
-        try {
-            FileOutputStream(file).use { out ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-            }
-            Log.d("SavePNG", "Saved to ${file.absolutePath}")
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        val file = File(
+            getExternalFilesDir(Environment.DIRECTORY_PICTURES),
+            "whiteboard.png"
+        )
+
+        val stream = FileOutputStream(file)
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+        stream.flush()
+        stream.close()
+
+        return file
     }
-
 }

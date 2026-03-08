@@ -79,21 +79,21 @@ class WhiteboardViewModel : ViewModel() {
     fun continueStroke(x: Float, y: Float) {
         currentStroke?.points?.add(listOf(x, y))
     }
-
-    fun undo() {
-        val list = _strokes.value
-        if (list.isNotEmpty()) {
-            redoStack.add(list.last())
-            _strokes.value = list.dropLast(1)
-        }
-    }
-
-    fun redo() {
-        if (redoStack.isNotEmpty()) {
-            val stroke = redoStack.removeLast()
-            _strokes.value = _strokes.value + stroke
-        }
-    }
+//
+//    fun undo() {
+//        val list = _strokes.value
+//        if (list.isNotEmpty()) {
+//            redoStack.add(list.last())
+//            _strokes.value = list.dropLast(1)
+//        }
+//    }
+//
+//    fun redo() {
+//        if (redoStack.isNotEmpty()) {
+//            val stroke = redoStack.removeLast()
+//            _strokes.value = _strokes.value + stroke
+//        }
+//    }
 
 
 }
