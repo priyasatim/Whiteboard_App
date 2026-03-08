@@ -6,6 +6,8 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.graphics.Rect
 import android.util.AttributeSet
 import android.util.Log
@@ -14,6 +16,7 @@ import android.view.View
 import com.example.whiteboardapp.models.Shape
 import com.example.whiteboardapp.models.Stroke
 import com.example.whiteboardapp.models.TextItem
+import com.example.whiteboardapp.models.ToolType
 import com.example.whiteboardapp.viewmodels.WhiteboardViewModel
 import java.io.File
 import java.io.FileOutputStream
@@ -61,8 +64,16 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
 
         // Draw strokes
         for (stroke in strokes) {
+            if (stroke.tool == ToolType.ERASER) {
 
-            paint.color = stroke.color
+                paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
+
+            } else {
+
+                paint.xfermode = null
+                paint.color = stroke.color
+            }
+
             paint.strokeWidth = stroke.width
 
             val path = Path()

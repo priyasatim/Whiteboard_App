@@ -8,6 +8,7 @@ import com.example.whiteboardapp.models.TextItem
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import androidx.core.graphics.toColorInt
+import com.example.whiteboardapp.models.ToolType
 
 class WhiteboardViewModel : ViewModel() {
 
@@ -20,6 +21,7 @@ class WhiteboardViewModel : ViewModel() {
     val _texts = MutableStateFlow<List<TextItem>>(emptyList())
     var texts: MutableStateFlow<List<TextItem>> = _texts
 
+    var currentTool: ToolType = ToolType.PEN
 
     // Current drawing options
     var currentColor = "#000000".toColorInt()
@@ -65,7 +67,8 @@ class WhiteboardViewModel : ViewModel() {
         currentStroke = Stroke(
             points = mutableListOf(),
             color = currentColor,
-            width = width
+            width = width,
+            tool = currentTool
         )
 
         currentStroke?.points?.add(listOf(x, y))
@@ -78,25 +81,16 @@ class WhiteboardViewModel : ViewModel() {
     }
 
     fun undo() {
-
-        val current = _strokes.value
-
-        if (current.isNotEmpty()) {
-
-            val lastStroke = current.last()
-
-            redoStack.add(lastStroke)
-
-            _strokes.value = current.dropLast(1)
+        val list = _strokes.value
+        if (list.isNotEmpty()) {
+            redoStack.add(list.last())
+            _strokes.value = list.dropLast(1)
         }
     }
 
     fun redo() {
-
         if (redoStack.isNotEmpty()) {
-
-            val stroke = redoStack.removeAt(redoStack.lastIndex)
-
+            val stroke = redoStack.removeLast()
             _strokes.value = _strokes.value + stroke
         }
     }
