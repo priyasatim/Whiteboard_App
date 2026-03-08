@@ -6,6 +6,8 @@ import com.example.whiteboardapp.models.Stroke
 import com.example.whiteboardapp.models.TextItem
 import com.google.firebase.crashlytics.buildtools.reloc.com.google.common.reflect.TypeToken
 import com.google.gson.Gson
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -15,7 +17,7 @@ class FileService(private val context: Context) {
 
     private val gson = Gson()
 
-    fun saveWhiteboard(strokes: List<Stroke>, shapes: List<Shape>, texts: List<TextItem>) {
+    fun saveCanvas(strokes: StateFlow<List<Stroke>>, shapes: MutableStateFlow<List<Shape>>, texts: MutableStateFlow<List<TextItem>>) {
         val data = mapOf(
             "strokes" to strokes,
             "shapes" to shapes,

@@ -39,12 +39,15 @@ import com.example.whiteboardapp.views.DrawingCanvas
 import com.google.gson.Gson
 import kotlinx.coroutines.launch
 import androidx.core.graphics.toColorInt
+import com.example.whiteboardapp.services.FileService
 import java.io.File
 import java.io.FileOutputStream
 
 class MainActivity : AppCompatActivity() {
     private val viewModel: WhiteboardViewModel by viewModels()
     private lateinit var binding: ActivityMainBinding
+    private lateinit var fileService: FileService
+
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -52,6 +55,12 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        init()
+        setOnClickListner()
+    }
+
+
+    private fun init() {
         // Observe flows and update canvas
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -77,16 +86,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.drawingCanvas.viewModel = viewModel
+        fileService = FileService(this)
 
-        // ----- Color buttons -----
-        binding.colorPalette.colorRed.setOnClickListener { viewModel.changeColor("#FF0000".toColorInt()) }
-        binding.colorPalette.colorBlue.setOnClickListener { viewModel.changeColor("#0000FF".toColorInt()) }
-        binding.colorPalette.colorGreen.setOnClickListener { viewModel.changeColor("#00FF00".toColorInt()) }
-
-        // ----- Stroke width -----
-        binding.btnThin.setOnClickListener { viewModel.changeWidth(3f) }
-        binding.btnMedium.setOnClickListener { viewModel.changeWidth(6f) }
-        binding.btnThick.setOnClickListener { viewModel.changeWidth(10f) }
 
         val canvasView = findViewById<DrawingCanvas>(R.id.drawingCanvas)
 
@@ -94,42 +95,23 @@ class MainActivity : AppCompatActivity() {
             showEditTextDialog(textItem)
         }
 
-        // ----- Shapes -----
-        binding.ivAddShape.setOnClickListener {
-            showShapeDialog(this)
-        }
+    }
+        private fun setOnClickListner(){
+        // ----- Color buttons -----
+        binding.colorPalette.colorRed.setOnClickListener(clickListener)
+        binding.colorPalette.colorBlue.setOnClickListener(clickListener)
+        binding.colorPalette.colorGreen.setOnClickListener(clickListener)
 
-        // ----- Erase -----
-        binding.ivErase.setOnClickListener {
-            canvasView.eraserMode = !canvasView.eraserMode
-        }
+        // ----- Stroke width -----
+        binding.btnThin.setOnClickListener(clickListener)
+        binding.btnMedium.setOnClickListener(clickListener)
+        binding.btnThick.setOnClickListener(clickListener)
 
-        binding.ivPng.setOnClickListener {
-            val file = saveCanvasAsPNG()
-            val bitmap = BitmapFactory.decodeFile(file.absolutePath)
-
-            binding.ivPreview.setImageBitmap(bitmap)
-        }
-
-
-        // ----- Text -----
-        binding.ivText.setOnClickListener {
-            val lastY = viewModel.texts.value.lastOrNull()?.position?.second ?: 500f
-            val text = TextItem(
-                "Hello!",
-                Pair(200f, lastY + 60f), // offset new text
-                viewModel.currentColor,
-                48f
-            )
-            viewModel.addText(text)
-            binding.drawingCanvas.invalidate() // redraw canvas
-        }
-
-        // ----- Save -----
-        binding.ivSave.setOnClickListener {
-            saveCanvas()
-        }
-
+        binding.ivErase.setOnClickListener(clickListener)
+        binding.ivAddShape.setOnClickListener(clickListener)
+        binding.ivText.setOnClickListener(clickListener)
+        binding.ivPng.setOnClickListener(clickListener)
+        binding.ivSave.setOnClickListener(clickListener)
 
 //        binding.ivUndo.setOnClickListener {
 //            viewModel.undo()
@@ -141,203 +123,42 @@ class MainActivity : AppCompatActivity() {
 //            viewModel.redo()
 //            binding.drawingCanvas.invalidate()
 //        }
-
-
-        // ----- Touch on canvas for freehand -----
-//        binding.drawingCanvas.setOnTouchListener { v, event ->
-//            val canvas = v as DrawingCanvas
-//            when (event.action) {
-//                MotionEvent.ACTION_DOWN -> {
-//                    // Check if touching resize handle
-//                    canvas.resizeShape = canvas.shapes.find { shape ->
-//                        when(shape) {
-//                            is Shape.Rectangle -> {
-//                                val handle = shape.getResizeHandle()
-//                                val dx = handle[0] - event.x
-//                                val dy = handle[1] - event.y
-//                                dx*dx + dy*dy <= canvas.handleRadius*canvas.handleRadius
-//                            }
-//
-//                            is Shape.Circle -> {
-//
-//                                val handle = shape.getResizeHandle()
-//
-//                                val dx = handle.first - event.x
-//                                val dy = handle.second - event.y
-//
-//                                dx * dx + dy * dy <= canvas.handleRadius * canvas.handleRadius
-//                            }
-//
-//                            is Shape.Line -> {
-//
-//                                val start = shape.start
-//                                val end = shape.end
-//
-//                                val dxStart = start[0] - event.x
-//                                val dyStart = start[1] - event.y
-//
-//                                val dxEnd = end[0] - event.x
-//                                val dyEnd = end[1] - event.y
-//
-//                                val startTouched =
-//                                    dxStart * dxStart + dyStart * dyStart <= canvas.handleRadius * canvas.handleRadius
-//
-//                                val endTouched =
-//                                    dxEnd * dxEnd + dyEnd * dyEnd <= canvas.handleRadius * canvas.handleRadius
-//
-//                                startTouched || endTouched
-//                            }
-//                            else -> false
-//                        }
-//                    }
-//
-//
-//
-//                    if(canvas.resizeShape != null) {
-//                        canvas.isResizing = true
-//                        canvas.resizeStartX = event.x
-//                        canvas.resizeStartY = event.y
-//                        true
-//                    } else {
-//                        val tappedText = viewModel.texts.value.find { textItem ->
-//                            val textPaint = Paint()
-//                            textPaint.textSize = textItem.size
-//                            textPaint.color = textItem.color
-//                            textPaint.style = Paint.Style.FILL
-//
-//                            val bounds = Rect()
-//                            textPaint.getTextBounds(textItem.text, 0, textItem.text.length, bounds)
-//
-//                            val left = textItem.position.first
-//                            val top = textItem.position.second - bounds.height() // baseline - height
-//                            val right = left + bounds.width()
-//                            val bottom = textItem.position.second
-//
-//                            val padding = 20f // optional, make tapping easier
-//                            event.x in (left - padding)..(right + padding) &&
-//                                    event.y in (top - padding)..(bottom + padding)
-//                        }
-//
-//                        if (tappedText != null) {
-//                            // User tapped an existing text → open edit dialog
-//                            showEditTextDialog(tappedText)
-//                        }
-//                        canvas.lastTouchX = event.x
-//                        canvas.lastTouchY = event.y
-//                        true
-//                    }
-//                }
-//
-//                MotionEvent.ACTION_MOVE -> {
-//                    if(canvas.isResizing) {
-//                        val dx = event.x - canvas.resizeStartX
-//                        val dy = event.y - canvas.resizeStartY
-//                        when(val shape = canvas.resizeShape) {
-//                            is Shape.Rectangle -> {
-//                                shape.bottomRight = listOf(
-//                                    shape.bottomRight[0] + dx,
-//                                    shape.bottomRight[1] + dy
-//                                ) as MutableList<Float>
-//                            }
-//                            is Shape.Circle -> {
-//                                val handle = shape.getResizeHandle()
-//
-//                                val dx = handle.first - event.x
-//                                val dy = handle.second - event.y
-//
-//                                val touchRadius = canvas.handleRadius * 3
-//
-//                                dx * dx + dy * dy <= touchRadius * touchRadius
-//                            }
-//                            is Shape.Line -> {
-//
-//                                shape.end = mutableListOf(event.x, event.y)
-//                            }
-//                            is Shape.Polygon -> {
-//
-//                                val index = canvas.selectedPolygonPointIndex
-//
-//                                if (index != -1) {
-//                                    shape.points[index] = mutableListOf(event.x, event.y)
-//                                }
-//                            }
-//                            else -> {}
-//                        }
-//                        canvas.resizeStartX = event.x
-//                        canvas.resizeStartY = event.y
-//                        canvas.invalidate()
-//                        true
-//                    } else {
-//                        // Existing drag / stroke logic
-//                        canvas.currentShape?.let { shape ->
-//                            val dx = event.x - canvas.lastTouchX
-//                            val dy = event.y - canvas.lastTouchY
-//                            when (shape) {
-//                                is Shape.Rectangle -> {
-//                                    shape.topLeft = listOf(
-//                                        shape.topLeft[0] + dx,
-//                                        shape.topLeft[1] + dy
-//                                    ) as MutableList<Float>
-//                                    shape.bottomRight = listOf(
-//                                        shape.bottomRight[0] + dx,
-//                                        shape.bottomRight[1] + dy
-//                                    ) as MutableList<Float>
-//                                }
-//                                is Shape.Circle -> {
-//                                    val newX = shape.center[0] + dx
-//                                    val newY = shape.center[1] + dy
-//
-//                                    shape.center = listOf(newX, newY) as MutableList<Float>
-//                                }
-//                                is Shape.Line -> {
-//                                    shape.start = mutableListOf(shape.start[0] + dx, shape.start[1] + dy)
-//                                    shape.end = mutableListOf(shape.end[0] + dx, shape.end[1] + dy)
-//                                }
-//
-//                                is Shape.Polygon -> {
-//                                    shape.points = shape.points.map { point ->
-//                                        mutableListOf(point[0] + dx, point[1] + dy)
-//                                    }.toMutableList()
-//                                }
-//                            }
-//                            canvas.lastTouchX = event.x
-//                            canvas.lastTouchY = event.y
-//                        }
-//
-//                        canvas.currentShape ?: canvas.currentStroke?.points?.add(Pair(event.x, event.y))
-//                        canvas.invalidate()
-//                        true
-//                    }
-//                }
-//
-//                MotionEvent.ACTION_UP -> {
-//                    canvas.currentStroke?.let { viewModel.addStroke(it) }
-//                    canvas.currentStroke = null
-//                    canvas.currentShape = null
-//                    canvas.isResizing = false
-//                    canvas.resizeShape = null
-//                    true
-//                }
-//
-//                else -> false
-//            }
-//        }
     }
 
-    private fun saveCanvas() {
-        // Convert strokes, shapes, texts to JSON (use Gson)
-        val data = mapOf(
-            "strokes" to viewModel.strokes.value,
-            "shapes" to viewModel.shapes.value,
-            "texts" to viewModel.texts.value
-        )
-        val json = Gson().toJson(data)
-        // Save to file (internal storage)
-        val filename = "whiteboard_${System.currentTimeMillis()}.json"
-        openFileOutput(filename, MODE_PRIVATE).use {
-            it.write(json.toByteArray())
+    private val clickListener = View.OnClickListener { view ->
+
+        when (view.id) {
+
+            R.id.colorRed -> viewModel.changeColor("#FF0000".toColorInt())
+
+            R.id.colorBlue -> viewModel.changeColor("#0000FF".toColorInt())
+
+            R.id.colorGreen -> viewModel.changeColor("#00FF00".toColorInt())
+
+            R.id.btnThin -> viewModel.changeWidth(3f)
+
+            R.id.btnMedium -> viewModel.changeWidth(6f)
+
+            R.id.btnThick -> viewModel.changeWidth(10f)
+
+            R.id.iv_erase -> binding.drawingCanvas.eraserMode =
+                !binding.drawingCanvas.eraserMode
+
+            R.id.iv_add_shape -> showShapeDialog(this)
+
+            R.id.iv_text -> addText()
+
+            R.id.iv_png -> {
+                val file = saveCanvasAsPNG()
+                val bitmap = BitmapFactory.decodeFile(file.absolutePath)
+
+                binding.ivPreview.setImageBitmap(bitmap)
+            }
+
+            R.id.iv_save -> {
+                fileService.saveCanvas(viewModel.strokes,viewModel.shapes,viewModel.texts)
+            }
         }
-        Toast.makeText(this, "Saved $filename", Toast.LENGTH_SHORT).show()
     }
 
     fun showShapeDialog(context: Context) {
@@ -474,5 +295,17 @@ class MainActivity : AppCompatActivity() {
         stream.close()
 
         return file
+    }
+
+    private fun addText() {
+        val lastY = viewModel.texts.value.lastOrNull()?.position?.second ?: 500f
+        val text = TextItem(
+            "Hello!",
+            Pair(200f, lastY + 60f), // offset new text
+            viewModel.currentColor,
+            48f
+        )
+        viewModel.addText(text)
+        binding.drawingCanvas.invalidate() // redraw canvas
     }
 }
