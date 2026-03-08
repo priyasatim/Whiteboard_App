@@ -57,20 +57,20 @@
             android:src="@drawable/ic_text"/>
 
         <ImageView
-            android:id="@+id/iv_save"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:padding="6dp"
-            android:src="@drawable/ic_save"/>
-
-        <ImageView
             android:id="@+id/iv_add_shape"
             android:layout_width="0dp"
             android:layout_height="40dp"
             android:layout_weight="1"
             android:padding="6dp"
             android:src="@drawable/ic_add"/>
+
+        <ImageView
+            android:id="@+id/iv_save"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:padding="6dp"
+            android:src="@drawable/ic_save"/>
 
         <TextView
             android:id="@+id/tv_png"
