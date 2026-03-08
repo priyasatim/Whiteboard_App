@@ -18,6 +18,7 @@ import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.ImageView
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
@@ -39,6 +40,7 @@ import com.example.whiteboardapp.views.DrawingCanvas
 import com.google.gson.Gson
 import kotlinx.coroutines.launch
 import androidx.core.graphics.toColorInt
+import com.example.whiteboardapp.models.ToolType
 import com.example.whiteboardapp.services.FileService
 import java.io.File
 import java.io.FileOutputStream
@@ -47,6 +49,7 @@ class MainActivity : AppCompatActivity() {
     private val viewModel: WhiteboardViewModel by viewModels()
     private lateinit var binding: ActivityMainBinding
     private lateinit var fileService: FileService
+    private val gson = Gson()
 
 
     @SuppressLint("ClickableViewAccessibility")
@@ -103,15 +106,17 @@ class MainActivity : AppCompatActivity() {
         binding.colorPalette.colorGreen.setOnClickListener(clickListener)
 
         // ----- Stroke width -----
-        binding.btnThin.setOnClickListener(clickListener)
-        binding.btnMedium.setOnClickListener(clickListener)
-        binding.btnThick.setOnClickListener(clickListener)
+        binding.colorPalette.ivThin.setOnClickListener(clickListener)
+        binding.colorPalette.ivMedium.setOnClickListener(clickListener)
+        binding.colorPalette.ivThick.setOnClickListener(clickListener)
 
         binding.ivErase.setOnClickListener(clickListener)
         binding.ivAddShape.setOnClickListener(clickListener)
         binding.ivText.setOnClickListener(clickListener)
-        binding.ivPng.setOnClickListener(clickListener)
+        binding.tvPng.setOnClickListener(clickListener)
         binding.ivSave.setOnClickListener(clickListener)
+        binding.ivPencil.setOnClickListener(clickListener)
+        binding.btnClosePreview.setOnClickListener(clickListener)
 
 //        binding.ivUndo.setOnClickListener {
 //            viewModel.undo()
@@ -135,28 +140,60 @@ class MainActivity : AppCompatActivity() {
 
             R.id.colorGreen -> viewModel.changeColor("#00FF00".toColorInt())
 
-            R.id.btnThin -> viewModel.changeWidth(3f)
+            R.id.iv_thin -> viewModel.changeWidth(3f)
 
-            R.id.btnMedium -> viewModel.changeWidth(6f)
+            R.id.iv_medium -> viewModel.changeWidth(6f)
 
-            R.id.btnThick -> viewModel.changeWidth(10f)
+            R.id.iv_thick -> viewModel.changeWidth(10f)
 
-            R.id.iv_erase -> binding.drawingCanvas.eraserMode =
-                !binding.drawingCanvas.eraserMode
+            R.id.iv_erase -> {
+                viewModel.selectTool(ToolType.ERASER)
+                updateToolUI(ToolType.ERASER)
 
-            R.id.iv_add_shape -> showShapeDialog(this)
+                binding.drawingCanvas.eraserMode = !binding.drawingCanvas.eraserMode
+            }
 
-            R.id.iv_text -> addText()
+            R.id.iv_add_shape -> {
+                viewModel.selectTool(ToolType.SHAPE)
+                updateToolUI(ToolType.SHAPE)
 
-            R.id.iv_png -> {
+                showShapeDialog(this)
+            }
+
+            R.id.iv_text -> {
+                viewModel.selectTool(ToolType.TEXT)
+                updateToolUI(ToolType.TEXT)
+
+                addText()
+            }
+
+            R.id.tv_png -> {
+                viewModel.selectTool(ToolType.SAVEPNG)
+                updateToolUI(ToolType.SAVEPNG)
+
                 val file = saveCanvasAsPNG()
                 val bitmap = BitmapFactory.decodeFile(file.absolutePath)
 
                 binding.ivPreview.setImageBitmap(bitmap)
+                binding.framelayoutPng.visibility = View.VISIBLE
             }
 
             R.id.iv_save -> {
-                fileService.saveCanvas(viewModel.strokes,viewModel.shapes,viewModel.texts)
+                viewModel.selectTool(ToolType.SAVE)
+                updateToolUI(ToolType.SAVE)
+                saveCanvas()
+            }
+
+            R.id.iv_pencil -> {
+                viewModel.currentTool = ToolType.PEN
+
+                viewModel.selectTool(ToolType.PEN)
+                updateToolUI(ToolType.PEN)
+
+            }
+
+            R.id.btnClosePreview -> {
+                binding.framelayoutPng.visibility = View.GONE
             }
         }
     }
@@ -260,7 +297,7 @@ class MainActivity : AppCompatActivity() {
 
         // 2️⃣ Build and show AlertDialog
         AlertDialog.Builder(this)
-            .setTitle("Edit Text")
+            .setTitle("Change Text")
             .setView(editText)
             .setPositiveButton("OK") { _, _ ->
                 // Update the text in the TextItem
@@ -308,4 +345,86 @@ class MainActivity : AppCompatActivity() {
         viewModel.addText(text)
         binding.drawingCanvas.invalidate() // redraw canvas
     }
+
+    private fun updateToolUI(selectedTool: ToolType) {
+        val selectedColor = Color.parseColor("#FFDD00") // Highlight color
+        val defaultColor = Color.TRANSPARENT         // Default color
+
+        binding.ivPencil.apply {
+            binding.drawingCanvas.eraserMode = false
+            isSelected = selectedTool == ToolType.PEN
+            setBackgroundColor(if (isSelected) selectedColor else defaultColor)
+        }
+
+        binding.ivErase.apply {
+            binding.drawingCanvas.eraserMode = true
+            isSelected = selectedTool == ToolType.ERASER
+            setBackgroundColor(if (isSelected) selectedColor else defaultColor)
+        }
+
+        binding.ivAddShape.apply{
+            binding.drawingCanvas.eraserMode = false
+            isSelected = selectedTool == ToolType.SHAPE
+            setBackgroundColor(if (isSelected) selectedColor else defaultColor)
+        }
+
+        binding.ivText.apply{
+            binding.drawingCanvas.eraserMode = false
+            isSelected = selectedTool == ToolType.TEXT
+            setBackgroundColor(if (isSelected) selectedColor else defaultColor)
+        }
+
+        binding.tvPng.apply{
+            binding.drawingCanvas.eraserMode = false
+            isSelected = selectedTool == ToolType.SAVEPNG
+            setBackgroundColor(if (isSelected) selectedColor else defaultColor)
+        }
+
+        binding.ivSave.apply{
+            binding.drawingCanvas.eraserMode = false
+            isSelected = selectedTool == ToolType.SAVE
+            setBackgroundColor(if (isSelected) selectedColor else defaultColor)
+        }
+    }
+
+    private fun saveCanvas() {
+        // Convert strokes, shapes, texts to JSON (use Gson)
+        val data = mapOf(
+            "strokes" to viewModel.strokes.value,
+            "shapes" to viewModel.shapes.value,
+            "texts" to viewModel.texts.value
+        )
+        val json = Gson().toJson(data)
+        // Save to file (internal storage)
+        val filename = "whiteboard_${System.currentTimeMillis()}.json"
+        openFileOutput(filename, MODE_PRIVATE).use {
+            it.write(json.toByteArray())
+        }
+        Toast.makeText(this, "Saved $filename", Toast.LENGTH_SHORT).show()
+
+        val jsonString = gson.toJson(data)
+
+        showJsonDialog(jsonString)
+    }
+
+    fun showJsonDialog(jsonString: String) {
+        // Create a TextView inside a ScrollView
+        val scrollView = ScrollView(this)
+        val textView = TextView(this).apply {
+            text = jsonString
+            setPadding(16, 16, 16, 16)
+            setTextIsSelectable(true) // Allow copy
+        }
+        scrollView.addView(textView)
+
+        // Build and show dialog
+        AlertDialog.Builder(this)
+            .setTitle("JSON Data")
+            .setView(scrollView)
+            .setPositiveButton("Close") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .show()
+    }
+
 }

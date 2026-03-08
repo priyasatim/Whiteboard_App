@@ -8,53 +8,12 @@
     android:padding="16dp">
 
     <!-- Toolbar: Colors & Stroke Width -->
-    <LinearLayout
-        android:id="@+id/toolbar"
+    <include
+        android:id="@+id/colorPalette"
+        layout="@layout/color_palate"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:weightSum="6"
-        android:layout_marginBottom="8dp">
+        android:layout_height="wrap_content"/>
 
-        <ImageView
-            android:id="@+id/iv_undo"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:padding="6dp"
-            android:src="@drawable/ic_text"/>
-
-        <ImageView
-            android:id="@+id/iv_redo"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:padding="6dp"
-            android:src="@drawable/ic_text"/>
-
-        <!-- Stroke width buttons -->
-        <Button
-            android:id="@+id/btnThin"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:text="Thin"/>
-
-        <Button
-            android:id="@+id/btnMedium"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:text="Medium"/>
-
-        <Button
-            android:id="@+id/btnThick"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:text="Thick"/>
-    </LinearLayout>
 
     <!-- Drawing Canvas -->
     <com.example.whiteboardapp.views.DrawingCanvas
@@ -72,6 +31,14 @@
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:weightSum="5">
+
+        <ImageView
+            android:id="@+id/iv_pencil"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:padding="6dp"
+            android:src="@drawable/ic_pen"/>
 
         <ImageView
             android:id="@+id/iv_erase"
@@ -99,30 +66,46 @@
 
         <ImageView
             android:id="@+id/iv_add_shape"
-            android:layout_width="24dp"
+            android:layout_width="0dp"
             android:layout_height="40dp"
             android:layout_weight="1"
             android:padding="6dp"
             android:src="@drawable/ic_add"/>
 
-        <ImageView
-            android:id="@+id/iv_png"
-            android:layout_width="24dp"
+        <TextView
+            android:id="@+id/tv_png"
+            android:layout_width="wrap_content"
             android:layout_height="40dp"
             android:layout_weight="1"
             android:padding="6dp"
-            android:src="@android:drawable/ic_menu_save"/>
+            android:text="PNG"/>
     </LinearLayout>
 
-    <include
-        android:id="@+id/colorPalette"
-        layout="@layout/color_palate"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"/>
 
-    <ImageView
-    android:id="@+id/ivPreview"
-    android:layout_width="200dp"
-    android:layout_height="200dp"
-    android:scaleType="fitCenter"/>
+    <FrameLayout
+        android:id="@+id/framelayout_png"
+        android:layout_width="200dp"
+        android:layout_height="200dp"
+        android:visibility="gone"
+        android:background="#EEEEEE">
+
+        <!-- Image Preview -->
+        <ImageView
+            android:id="@+id/ivPreview"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:scaleType="fitCenter"/>
+
+        <!-- Cross Button -->
+        <ImageButton
+            android:id="@+id/btnClosePreview"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_gravity="top|end"
+            android:layout_margin="4dp"
+            android:background="@android:color/transparent"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:contentDescription="Close"
+            android:tint="@android:color/black"/>
+    </FrameLayout>
 </LinearLayout>

@@ -1,6 +1,5 @@
 package com.example.whiteboardapp.viewmodels
 
-import android.graphics.Color
 import androidx.lifecycle.ViewModel
 import com.example.whiteboardapp.models.Shape
 import com.example.whiteboardapp.models.Stroke
@@ -13,7 +12,7 @@ import com.example.whiteboardapp.models.ToolType
 class WhiteboardViewModel : ViewModel() {
 
     private val _strokes = MutableStateFlow<List<Stroke>>(emptyList())
-    val strokes: StateFlow<List<Stroke>> = _strokes
+    var strokes: MutableStateFlow<List<Stroke>> = _strokes
 
     private val _shapes = MutableStateFlow<List<Shape>>(emptyList())
     var shapes: MutableStateFlow<List<Shape>> = _shapes
@@ -21,7 +20,7 @@ class WhiteboardViewModel : ViewModel() {
     val _texts = MutableStateFlow<List<TextItem>>(emptyList())
     var texts: MutableStateFlow<List<TextItem>> = _texts
 
-    var currentTool: ToolType = ToolType.PEN
+    var currentTool: ToolType?= null
 
     // Current drawing options
     var currentColor = "#000000".toColorInt()
@@ -59,7 +58,6 @@ class WhiteboardViewModel : ViewModel() {
 
     fun addStroke(stroke: Stroke) {
         _strokes.value = _strokes.value + stroke
-        redoStack.clear()
     }
 
     fun startStroke(x: Float, y: Float,width : Float) {
@@ -79,6 +77,11 @@ class WhiteboardViewModel : ViewModel() {
     fun continueStroke(x: Float, y: Float) {
         currentStroke?.points?.add(listOf(x, y))
     }
+
+    fun selectTool(tool: ToolType) {
+        currentTool = tool
+    }
+
 //
 //    fun undo() {
 //        val list = _strokes.value

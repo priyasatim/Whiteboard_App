@@ -1,6 +1,9 @@
 package com.example.whiteboardapp.services
 
 import android.content.Context
+import android.widget.ScrollView
+import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import com.example.whiteboardapp.models.Shape
 import com.example.whiteboardapp.models.Stroke
 import com.example.whiteboardapp.models.TextItem
@@ -17,7 +20,7 @@ class FileService(private val context: Context) {
 
     private val gson = Gson()
 
-    fun saveCanvas(strokes: StateFlow<List<Stroke>>, shapes: MutableStateFlow<List<Shape>>, texts: MutableStateFlow<List<TextItem>>) {
+    fun saveCanvas(context: Context,strokes: StateFlow<List<Stroke>>, shapes: MutableStateFlow<List<Shape>>, texts: MutableStateFlow<List<TextItem>>) {
         val data = mapOf(
             "strokes" to strokes,
             "shapes" to shapes,
@@ -27,6 +30,7 @@ class FileService(private val context: Context) {
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
         val file = File(context.filesDir, "whiteboard_$timestamp.json")
         file.writeText(json)
+
     }
 
     fun loadWhiteboard(file: File): Triple<List<Stroke>, List<Shape>, List<TextItem>> {
@@ -38,4 +42,5 @@ class FileService(private val context: Context) {
         val texts = gson.fromJson(gson.toJson(data["texts"]), Array<TextItem>::class.java).toList()
         return Triple(strokes, shapes, texts)
     }
+
 }

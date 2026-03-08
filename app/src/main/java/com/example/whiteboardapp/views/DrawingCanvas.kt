@@ -62,33 +62,37 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        // Draw strokes
-        for (stroke in strokes) {
-            if (stroke.tool == ToolType.ERASER) {
+        // Only draw strokes if PEN is selected
+        if (viewModel.currentTool == ToolType.PEN) {
 
-                paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
+            // Draw strokes
+            for (stroke in strokes) {
+                if (stroke.tool == ToolType.ERASER) {
 
-            } else {
+                    paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
 
-                paint.xfermode = null
-                paint.color = stroke.color
-            }
+                } else {
 
-            paint.strokeWidth = stroke.width
-
-            val path = Path()
-
-            if (stroke.points.isNotEmpty()) {
-
-                val first = stroke.points.first()
-                path.moveTo(first.get(0), first.get(1))
-
-                for (i in 1 until stroke.points.size) {
-                    val p = stroke.points[i]
-                    path.lineTo(p.get(0), p.get(1))
+                    paint.xfermode = null
+                    paint.color = stroke.color
                 }
 
-                canvas.drawPath(path, paint)
+                paint.strokeWidth = stroke.width
+
+                val path = Path()
+
+                if (stroke.points.isNotEmpty()) {
+
+                    val first = stroke.points.first()
+                    path.moveTo(first.get(0), first.get(1))
+
+                    for (i in 1 until stroke.points.size) {
+                        val p = stroke.points[i]
+                        path.lineTo(p.get(0), p.get(1))
+                    }
+
+                    canvas.drawPath(path, paint)
+                }
             }
         }
 
@@ -302,7 +306,9 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
             width = 3f + pressure * 15f
         }
 
-        viewModel.startStroke(event.x, event.y,width)
+        if (viewModel.currentTool == ToolType.PEN) {
+            viewModel.startStroke(event.x, event.y,width)
+            }
 
         // detect which shape is touched
         currentShape = findShapeAt(event.x, event.y)
@@ -488,31 +494,6 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
         currentText = null
     }
 
-    private fun distanceToSegment(
-        px: Float,
-        py: Float,
-        x1: Float,
-        y1: Float,
-        x2: Float,
-        y2: Float
-    ): Float {
-
-        val dx = x2 - x1
-        val dy = y2 - y1
-
-        val lengthSquared = dx * dx + dy * dy
-
-        if (lengthSquared == 0f) return hypot(px - x1, py - y1)
-
-        val t = ((px - x1) * dx + (py - y1) * dy) / lengthSquared
-
-        val clampedT = t.coerceIn(0f, 1f)
-
-        val projX = x1 + clampedT * dx
-        val projY = y1 + clampedT * dy
-
-        return hypot(px - projX, py - projY)
-    }
 
     fun findTextAt(x: Float, y: Float): TextItem? {
 
@@ -537,36 +518,6 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
         return null
     }
 
-
-    private fun isTouchInsideShape(shape: Shape, x: Float, y: Float): Boolean {
-        return when(shape) {
-            is Shape.Rectangle -> {
-                val left = shape.topLeft[0]
-                val top = shape.topLeft[1]
-                val right = shape.bottomRight[0]
-                val bottom = shape.bottomRight[1]
-                x >= left && x <= right && y >= top && y <= bottom
-            }
-            is Shape.Circle -> {
-                val dx = x - shape.center[0]
-                val dy = y - shape.center[1]
-                dx * dx + dy * dy <= shape.radius * shape.radius
-            }
-            is Shape.Line -> {
-                // Simple distance from point to line segment
-                val x1 = shape.start[0]
-                val y1 = shape.start[1]
-                val x2 = shape.end[0]
-                val y2 = shape.end[1]
-
-                val distance = distanceToLineSegment(x, y, x1, y1, x2, y2)
-                distance <= shape.strokeWidth / 2
-            }
-            is Shape.Polygon -> {
-                pointInPolygon(x, y, shape.points)
-            }
-        }
-    }
 
     // Helper for line distance
     fun distanceToLineSegment(px: Float, py: Float, x1: Float, y1: Float, x2: Float, y2: Float): Float {
