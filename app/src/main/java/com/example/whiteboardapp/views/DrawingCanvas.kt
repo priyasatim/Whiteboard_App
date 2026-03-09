@@ -518,7 +518,7 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
 
     fun eraseAt(x: Float, y: Float, eraserRadius: Float) {
 
-        // 1️⃣ Remove stroke points inside eraser
+        // Remove stroke points inside eraser
         val updatedStrokes = strokes.map { stroke ->
             val newPoints = stroke.points.filter { point ->
                 val dx = point.get(0) - x
@@ -532,7 +532,7 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
         }.filter { it.points.isNotEmpty() }
         strokes = updatedStrokes.toMutableList()
 
-        // 2️⃣ Remove topmost shape only
+        // Remove topmost shape only
         val shapeToRemove = findTopShapeAt(x, y, eraserRadius)
         shapeToRemove?.let {
             shapes = shapes.toMutableList().apply { remove(it) }
@@ -540,7 +540,7 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
             viewModel.shapes.value = shapes
         }
 
-        // 3️⃣ Remove text inside eraser
+        // Remove text inside eraser
         val updatedTexts = texts.filterNot { text ->
             val dx = text.position.first - x
             val dy = text.position.second - y
