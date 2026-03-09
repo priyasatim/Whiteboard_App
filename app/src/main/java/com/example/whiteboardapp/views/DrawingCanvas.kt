@@ -62,41 +62,29 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        // Only draw strokes if PEN is selected
-        if (viewModel.currentTool == ToolType.PEN) {
-
-            // Draw strokes
-            for (stroke in strokes) {
-                if (stroke.tool == ToolType.ERASER) {
-
-                    paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
-
-                } else {
-
-                    paint.xfermode = null
-                    paint.color = stroke.color
-                }
-
-                paint.strokeWidth = stroke.width
-
-                val path = Path()
-
-                if (stroke.points.isNotEmpty()) {
-
-                    val first = stroke.points.first()
-                    path.moveTo(first.get(0), first.get(1))
-
-                    for (i in 1 until stroke.points.size) {
-                        val p = stroke.points[i]
-                        path.lineTo(p.get(0), p.get(1))
-                    }
-
-                    canvas.drawPath(path, paint)
-                }
+        // 1. Draw all strokes
+        for (stroke in strokes) {
+            if (stroke.tool == ToolType.ERASER) {
+                paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
+            } else {
+                paint.xfermode = null
+                paint.color = stroke.color
             }
+            paint.strokeWidth = stroke.width
+            paint.style = Paint.Style.STROKE
+
+            val path = Path()
+            stroke.points.firstOrNull()?.let { first ->
+                path.moveTo(first[0], first[1])
+            }
+            for (i in 1 until stroke.points.size) {
+                val p = stroke.points[i]
+                path.lineTo(p[0], p[1])
+            }
+            canvas.drawPath(path, paint)
         }
 
-        // Draw shapes
+        // 2. Draw shapes
         shapes.forEach { shape ->
             paint.style = Paint.Style.STROKE
             paint.color = when (shape) {
@@ -105,7 +93,6 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
                 is Shape.Line -> shape.color
                 is Shape.Polygon -> shape.color
             }
-
             paint.strokeWidth = when (shape) {
                 is Shape.Rectangle -> shape.strokeWidth
                 is Shape.Circle -> shape.strokeWidth
@@ -114,58 +101,24 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
             }
             when (shape) {
                 is Shape.Rectangle -> canvas.drawRect(
-                    shape.topLeft[0],
-                    shape.topLeft[1],
-                    shape.bottomRight[0],
-                    shape.bottomRight[1],
-                    paint
+                    shape.topLeft[0], shape.topLeft[1],
+                    shape.bottomRight[0], shape.bottomRight[1], paint
                 )
-                is Shape.Circle -> {
-
-                    canvas.drawCircle(
-                        shape.center[0],
-                        shape.center[1],
-                        shape.radius,
-                        paint
-                    )
-                }
-                is Shape.Line -> canvas.drawLine(
-                    shape.start[0],
-                    shape.start[1],
-                    shape.end[0],
-                    shape.end[1],
-                    paint
-                )
+                is Shape.Circle -> canvas.drawCircle(shape.center[0], shape.center[1], shape.radius, paint)
+                is Shape.Line -> canvas.drawLine(shape.start[0], shape.start[1], shape.end[0], shape.end[1], paint)
                 is Shape.Polygon -> {
-
-                    if (shape.points.size >= 2) {
-
-                        val path = Path()
-                        path.reset()
-
-                        shape.points.forEachIndexed { index, point ->
-                            val x = point[0]
-                            val y = point[1]
-
-                            if (index == 0) {
-                                path.moveTo(x, y)
-                            } else {
-                                path.lineTo(x, y)
-                            }
-                        }
-
-                        // close shape if 3+ points
-                        if (shape.points.size > 2) {
-                            path.close()
-                        }
-
-                        canvas.drawPath(path, paint)
+                    val path = Path()
+                    shape.points.forEachIndexed { index, point ->
+                        if (index == 0) path.moveTo(point[0], point[1])
+                        else path.lineTo(point[0], point[1])
                     }
+                    if (shape.points.size > 2) path.close()
+                    canvas.drawPath(path, paint)
                 }
             }
         }
 
-        // Draw text
+        // 3. Draw texts
         texts.forEach { text ->
             paint.style = Paint.Style.FILL
             paint.color = text.color
@@ -173,27 +126,23 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
             canvas.drawText(text.text, text.position.first, text.position.second, paint)
         }
 
-        // -----------------------
-        // Draw eraser highlight
-        // -----------------------
+        // 4 Draw eraser if active
         if (eraserMode) {
             val highlightPaint = Paint().apply {
                 style = Paint.Style.STROKE
                 color = Color.GRAY
                 strokeWidth = 2f
-                alpha = 150 // semi-transparent
+                alpha = 150
             }
             val fillPaint = Paint().apply {
                 style = Paint.Style.FILL
                 color = Color.LTGRAY
-                alpha = 50 // very light semi-transparent
+                alpha = 50
             }
-
             canvas.drawCircle(eraserX, eraserY, eraserRadius, fillPaint)
             canvas.drawCircle(eraserX, eraserY, eraserRadius, highlightPaint)
         }
     }
-
     // -------------------------------
     // Touch events for dragging shapes
     // -------------------------------
@@ -394,7 +343,9 @@ class DrawingCanvas(context: Context, attrs: AttributeSet? = null) : View(contex
         val dx = event.x - lastTouchX
         val dy = event.y - lastTouchY
 
-        viewModel.continueStroke(event.x, event.y)
+        if (viewModel.currentTool == ToolType.PEN && !isResizing && currentShape == null && currentText == null) {
+            viewModel.continueStroke(event.x, event.y)
+        }
 
         currentText?.let { text ->
 
